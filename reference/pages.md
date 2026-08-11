@@ -169,3 +169,56 @@ The Page Manager screen (`Index.cshtml`) is a left page-tree + right detail pane
 - **Language is per-PageConfig.** Each page holds a `PageConfig` array keyed by `LanguageID`; the language selector swaps which entry the form edits. SEO defaults are copied from global config only when `notUseSeoDefault` is false and the field is undefined.
 - **Name sanitizing on save.** `+` → `<!plus!>`, `&` → `<!ampersand!>`, `#` stripped (via `replacePlus` / inline replaces) before posting; names are validated 3–50 chars on create.
 - No hardcoded-domain (`exclusiveName*`) logic was found in this feature's scripts; all behavior keys off `DomainID`, `bCommerce`, and per-page flags.
+
+---
+
+## Feature: ตรวจสอบ URL ซ้ำก่อนบันทึกหน้าเพจ (`feature/pagemanager-check-duplicate-url-fields`)
+
+### What it does
+ก่อนบันทึกหน้าเพจ (Save Data) ระบบจะตรวจว่า **URL ของหน้า (URI Display Name / CustomUrlName / URLRewrite)** ซ้ำกับหน้าอื่นหรือไม่ ถ้าซ้ำจะเปิด **popup แจ้งเตือน** พร้อมรายชื่อหน้าที่ชนกัน ให้ admin เลือกได้ว่าจะ **ปิดหน้าที่ชน**, **ยืนยันบันทึกทั้งที่ซ้ำ**, หรือ **ยกเลิก** — แทนที่จะปล่อยให้บันทึกไปเงียบ ๆ แล้วเว็บเปิด URL ผิดหน้า
+
+### How to get there
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/PageManager`
+- Popup ไม่ใช่ route แยก — เปิดอัตโนมัติเมื่อกด **Save Data (บันทึกข้อมูล)** แล้วเจอ URL ซ้ำ
+
+### Flow การทำงาน
+1. กด **Save Data (บันทึกข้อมูล)** บนหน้า Page Manager
+2. Controller เรียก `checkAllPageUrlDuplicates()` **ก่อน** จะยิง `page/SetPagebyID`
+3. ไม่เจอซ้ำ → บันทึกตามปกติ
+4. เจอซ้ำ → เก็บ payload ไว้ใน `urlDuplicatePendingSave`, เปิด popup ในโหมดยืนยัน (`urlDuplicateConfirmMode = true`)
+5. admin เลือกทางใดทางหนึ่ง (ดูตารางด้านล่าง)
+
+### ปุ่มใน popup
+| ปุ่ม (EN / TH) | Function | ผลลัพธ์ |
+|---|---|---|
+| Confirm / ยืนยัน | `confirmSaveWithDuplicates()` | บันทึกด้วย payload ที่ค้างใน `urlDuplicatePendingSave` แม้ URL จะซ้ำ |
+| Disable / ปิดการใช้งาน (ต่อหน้าที่ชน) | `disableConflictPage(pg.pageId)` | ปิดหน้าที่ชน (`bDisableAccess`) แล้วบันทึกต่อ; ระหว่างรอมี spinner (`urlDuplicateDisabling[pageId]`) |
+| Cancel / ยกเลิก | `closeUrlDuplicateModal()` | ปิด popup, เคลียร์ pending state, ไม่บันทึก |
+
+### สิ่งที่แสดงในรายการหน้าที่ชน
+| ส่วน | ที่มา | หมายเหตุ |
+|---|---|---|
+| ชื่อหน้า | `pg.pageName` | ตัวหนา |
+| ภาษาที่ชน | `pg.langLabel` | รวมทุกภาษาที่ URL นี้ชน (จาก `getLanguageName(p.languageID)`, ไม่ซ้ำ) |
+| Badge **ปิดอยู่ / disabled** | `pg.allDisabled` | แสดงเมื่อทุกภาษาของหน้านั้น `bDisableAccess = true` |
+| ปุ่มปิดการใช้งาน | `ng-if="urlDuplicateConfirmMode && !pg.allDisabled"` | ซ่อนถ้าหน้านั้นปิดอยู่แล้วทั้งหมด |
+
+> **หมายเหตุ:** เดิมหน้าที่ `bDisableAccess = true` ถูก **กรองทิ้ง** ไม่แสดงใน popup เลย ทำให้ admin งงว่า URL ไปชนกับอะไร — commit `21f1b192c` เปลี่ยนเป็นแสดงต่อ แต่ติด badge "ปิดอยู่" และซ่อนปุ่มปิด
+
+### Scope variables ที่เพิ่มเข้ามา
+| Variable | ชนิด | ความหมาย |
+|---|---|---|
+| `urlDuplicateConfirmMode` | boolean | popup อยู่ในโหมดยืนยันก่อน save (แสดงปุ่มปิดหน้า) แทนโหมดดูอย่างเดียว |
+| `urlDuplicatePendingSave` | object / null | payload ที่รอ save จนกว่า admin จะยืนยัน |
+| `urlDuplicateDisabling` | object (map by pageId) | loading state ระหว่างกำลังปิดหน้าที่ชน |
+
+### Wired in (for developers)
+- **Controller:** `ScriptRequire/System/PageManager/Controller.js` — `checkAllPageUrlDuplicates()`, `confirmSaveWithDuplicates()`, `closeUrlDuplicateModal()`, `disableConflictPage(pageId)`; การจัดกลุ่มผลลัพธ์เป็น `pageGroups` (group by `pageId`, สะสม `langNames[]` และธง `allDisabled`)
+- **Service:** `ScriptRequire/System/PageManager/Service.js` — wrapper สำหรับ duplicate check + disable page
+- **View:** `Views/Page/Index.cshtml` — modal `#urlDuplicateModal`; class `.itp-url-dup-page-info`, `.itp-url-dup-lang-list`, `.itp-url-dup-disabled` (badge), `.itp-url-dup-disable-btn`, `.itp-spin` (spinner ตอนกำลังปิดหน้า)
+- **Save endpoint (ปลายทางเดิม):** `POST page/SetPagebyID` — feature นี้ทำหน้าที่เป็น pre-check ก่อนเรียก endpoint เดิม ไม่ได้เปลี่ยน endpoint
+- **Commits:** `75420956b`, `cc9ac6a9d`, `1e1db8e19`, `e5f8c91c7`, `21f1b192c` (แสดงหน้าที่ปิดอยู่พร้อม badge)
+
+### Gotchas
+- การเช็คทำ **ฝั่ง client ก่อนยิง save** — ไม่ได้แทน error `ERRORREWRITEURL` ที่ server ส่งกลับ; ยังเจอ error ตัวนั้นได้ถ้าชนกันในกรณีที่ pre-check มองไม่เห็น
+- ป้ายชื่อภาษาในรายการมาจาก `getLanguageName(languageID)` — หน้าเดียวกันที่ชนหลายภาษาจะยุบเป็นแถวเดียว แล้วรวมชื่อภาษาไว้ใน `langLabel`

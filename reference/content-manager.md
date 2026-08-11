@@ -166,3 +166,34 @@ Manages the website's system content — articles / news / blog entries — as a
 - **`?manage=true` admin UI** — Playwright public-render verification does NOT apply here (this is admin backend).
 - **`.cshtml` files require UTF-8 BOM** and **csproj `<Content Include>` entries** (all the named modals are already registered in `Boy_Growth_a_Man.csproj`).
 - **No hardcoded-domain whitelist spotted** in these views — category/tag/RSS behaviour is driven by per-domain data and the `bAllowMultipleLanguage` setting, consistent with the multi-tenant rule.
+
+---
+
+## Feature: Tab Slide — ปัดนิ้ว/ลากเมาส์ + วนสไลด์ต่อเนื่อง (`feature/contentmanager-tab-slide-touch-swipe`)
+
+### What it does
+เพิ่ม **touch swipe (ปัดนิ้วบนมือถือ) และ mouse drag (ลากเมาส์บน desktop)** ให้ Block รูปแบบ **Tab Slide (template 55)** ของ Content Manager พร้อมการ **วนสไลด์ต่อเนื่อง (continuous loop)** — ปัดถึงสไลด์สุดท้ายแล้ววนกลับสไลด์แรกได้เลย
+
+### ใช้กับ Block แบบไหน
+เฉพาะ Block ที่ตั้ง image layout เป็น **Tab Slide** (templateID 55) — renderer `slider_type55` เท่านั้น รูปแบบอื่น (single / album / slide / gallery) ไม่ได้รับผลกระทบ
+
+### พฤติกรรม
+| พฤติกรรม | รายละเอียด |
+|---|---|
+| Touch swipe (มือถือ) | ปัดซ้าย/ขวาเพื่อเปลี่ยนสไลด์บน `.slider_type55 .TabSlideItpContent` |
+| Vertical scroll ยังใช้ได้ | CSS `touch-action: pan-y` — ปัดขึ้น/ลงยังเลื่อนหน้าเว็บได้ตามปกติ ไม่ถูก swipe ดักไว้ |
+| Mouse drag (desktop) | กดค้างแล้วลากซ้าย/ขวาเปลี่ยนสไลด์ (`mousedown` → `mousemove` → `mouseup`) |
+| วนต่อเนื่อง (loop) | `goToContentSlide(componentId, index, loopDirection)` — `'next'` ที่สไลด์สุดท้ายวนกลับสไลด์แรก, `'prev'` ที่สไลด์แรกวนไปสไลด์สุดท้าย |
+| กัน init ซ้ำ | `touchContainer.dataset.touchDragInited = 'true'` — ป้องกันผูก event listener ซ้ำเมื่อ AngularJS re-compile component |
+
+### Wired in (for developers)
+- **View (จุดเริ่ม):** `Views/Component/Contentmanager/ContentManager.cshtml` — `<div class="slider_type55 TabSlideItpContent" ng-init="initTabSlideTouchDrag('@(Model._id)');">` + inline CSS `touch-action: pan-y;`
+- **Template entry:** `Views/Component/Contentmanager/template/TemplateMain.cshtml` (เลือก template 55)
+- **Controller:** `ScriptRequire/Component/Contentmanager/Controller.js`
+  - `$scope.initTabSlideTouchDrag(componentId)` — ผูก `touchstart`/`touchmove`/`touchend`/`touchcancel` (touchmove ใช้ `{ passive: false }` เพื่อ `preventDefault` แนวนอนได้) และ `mousedown`/`mousemove`/`mouseup`; helper `getClientX(e)` / `getClientY(e)` อ่านพิกัดจาก `e.touches[0]` หรือ `e` ตรง ๆ
+  - `$scope.goToContentSlide(componentId, index, loopDirection)` — เลื่อนสไลด์ + ตั้ง `tabSlideLoopTimeouts[componentId]` สำหรับวนต่อเนื่อง
+- **Commit:** `a32e92fef` — `feat(contentmanager): add touch/mouse drag swipe and continuous looping to tab slide format (template 55)`
+
+### Gotchas
+- ทำงานเฉพาะ template 55 — ถ้าเปลี่ยน Block ไปใช้ layout อื่น swipe จะหายไป
+- `initTabSlideTouchDrag` ถูกเรียกผ่าน `ng-init` ไม่ใช่ directive — ถ้า component ถูก re-render โดยไม่ผ่าน compile ใหม่ listener จะไม่ผูกซ้ำ (โดยตั้งใจ ตาม `dataset.touchDragInited`)
