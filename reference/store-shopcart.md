@@ -188,3 +188,45 @@ The branch number is also displayed after the company name in all checkout previ
 - **Apply overlay:** `GeneralSetting` and `DetailShop` save handlers set `$rootScope.applyReady = false`, so their save bars use the `--with-apply` slide-up; other shop screens save directly. See `ScriptRequire/CLAUDE.md` "applyReady savebar scoping".
 - **`.cshtml` BOM rule** applies if you ever rewrite one of these views (see `Views/CLAUDE.md`).
 - **Currency normalisation quirk:** order/stat code in `ShopcartHome/index.js` rewrites legacy currency strings `'บาท'`/`'THB.'`→`'THB'` and `'USD.'`→`'USD'` at runtime — legacy data may carry the un-normalised values.
+
+---
+
+## Feature: ปุ่มสั่งซื้อผ่านโซเชียล (Social Order Button) — DEV-1922 (`feature/social-order-button`)
+
+### What it does
+เพิ่มระบบ **"สั่งซื้อผ่านโซเชียล"** บนหน้ารายละเอียดสินค้า — แสดงปุ่มช่องทางโซเชียล (LINE, Facebook, หรือช่องทางที่กำหนดเอง) **ควบคู่ไปกับปุ่มใส่ตะกร้าปกติ** ลูกค้าที่อยากทักแชทสั่งซื้อกดปุ่มโซเชียลได้เลย โดยไม่ต้องผ่าน checkout
+
+### How to get there
+- **Route (ตั้งค่าต่อสินค้า):** `https://demo110.itopplus.com/?manage=true#!/Shopcart/Product/AddProductsV2/<productId>`
+- อยู่ในฟอร์ม **เพิ่ม/แก้ไขสินค้า (V2)** — ส่วน Social Order Channel
+
+### Fields
+| Field (EN / TH) | ชนิด | ผล | ข้อควรระวัง |
+|---|---|---|---|
+| เปิดใช้งานปุ่มสั่งซื้อผ่านโซเชียล | toggle | เปิด/ปิดระบบ social order ของสินค้านี้ | เปิดแล้วปุ่มใส่ตะกร้ายังแสดงอยู่ ไม่ได้ถูกแทนที่ |
+| Channel list | รายการช่องทาง | ช่องทางที่จะแสดงเป็นปุ่ม (preset LINE / Facebook หรือเพิ่มเอง) | — |
+| ButtonText | text input ต่อช่องทาง | ข้อความบนปุ่ม | ใช้เป็นฐานในการ generate `Key` ถ้าเป็น channel ที่เพิ่มเอง |
+| Url | text input ต่อช่องทาง | ลิงก์ปลายทางของปุ่ม | **ต้องขึ้นต้น `http://` หรือ `https://`** ไม่งั้น channel ถูกข้ามตอน save (`continue`) |
+| IconUrl | text input ต่อช่องทาง | URL ไอคอนบนปุ่ม | **ต้องขึ้นต้น `http://`, `https://` หรือ `/`** ไม่งั้น channel ถูกข้ามตอน save |
+| Key | สร้างอัตโนมัติ | identifier ภายในของช่องทาง | ดูกฎด้านล่าง |
+
+### กฎการสร้าง Key อัตโนมัติ
+ช่องทางที่ admin เพิ่มเอง (ไม่ได้มาจาก preset) จะมี `Key` ว่าง — ระบบสร้างให้ตอน save:
+1. ถ้ามี `Key` อยู่แล้ว → ล้างเหลือเฉพาะ `[a-z0-9-]`
+2. ถ้า `Key` ว่างแต่มี `ButtonText` → แปลง ButtonText เป็นตัวพิมพ์เล็ก ตัดทุกอย่างที่ไม่ใช่ `[a-z0-9-]` ออก แล้วตัดเหลือ **30 ตัวอักษร**
+3. ถ้าผลลัพธ์ยังว่าง (เช่น ButtonText เป็นภาษาไทยล้วน ไม่มีอักษร ASCII เลย) → ใช้ `custom-{index}` แทน
+4. ช่องทาง preset (LINE, Facebook ฯลฯ) มี `Key` กำหนดตายตัว ไม่ถูกเขียนทับ
+
+### สิ่งที่แสดงบนหน้าสินค้า (ฝั่งลูกค้า)
+- ป้ายข้อความ **"สั่งซื้อผ่านโซเชียล"** อยู่เหนือแถวปุ่มช่องทาง
+- ปุ่มแต่ละช่องทางแสดง `IconUrl` + `ButtonText`
+- ปุ่ม **ใส่ตะกร้า / Add to Cart** ปกติยังคงแสดงพร้อมกัน (ไม่ได้ถูกซ่อน)
+
+### Wired in (for developers)
+- **View (ตั้งค่า):** `Views/Shopcart/ShopBackEnd/AddProductV2.cshtml` — ส่วน social order channel config (branch นี้แตะ 38 ไฟล์, 1035+/189-)
+- **Validate + สร้าง Key:** `ScriptRequire/Store/System/Shopcart/Setting/Service/shopconfig/addshopsetting.js` — ลูป validate `url` / `icon` ด้วย regex แล้ว push เข้า `safeCh.push({ Key, IconUrl, ButtonText, Url })`; บล็อก `if (!key && text) { ... }` คือจุดสร้าง Key อัตโนมัติ
+- **Commits:** `e4c1d176b` (DEV-1922 ปุ่มสั่งซื้อผ่านโซเชียล), `1c7df13f7`, `ab0c1647a` (auto-generate Key จาก ButtonText)
+
+### Gotchas
+- **Channel ที่ URL หรือ Icon ผิดรูปแบบจะหายเงียบ ๆ** — validate ตอน save ใช้ `continue` ข้ามไป ไม่มี error แจ้ง admin; ถ้าปุ่มที่เพิ่มไว้ไม่ขึ้น ให้เช็คว่า URL ขึ้นต้นด้วย `http://` / `https://` และ IconUrl ขึ้นต้นด้วย `http://` / `https://` / `/` หรือยัง
+- **ButtonText ภาษาไทยล้วนได้ Key เป็น `custom-0`, `custom-1`, …** ซึ่งผูกกับ **ลำดับใน array** — สลับลำดับช่องทางแล้ว Key อาจเปลี่ยนตาม
