@@ -154,3 +154,50 @@ See `store-shopcart.md`.
 | E-SIM — Settings / Countries / Commodities / Orders | `#!/EsimSettings`, `#!/EsimCountry`, `#!/EsimCommodity`, `#!/EsimOrders` |
 
 See `specialized-modules.md`.
+
+---
+
+## Feature: Announcement Popup สำหรับ Admin (feature/admin-announcement-popup)
+
+เมื่อ admin login เข้าหลังบ้าน จะมี modal popup แสดง announcement จาก iTopPlus โดยอัตโนมัติ รองรับหลาย announcement, carousel รูปภาพ, lightbox, และ badge แจ้งเตือนบน navbar ไม่มีหน้า admin สำหรับสร้าง announcement — ข้อมูลถูก author ในฐานข้อมูล PoolNode โดยตรง
+
+### วิธีเข้าถึง
+
+- **Popup:** แสดงอัตโนมัติเมื่อ login เข้า `https://demo110.itopplus.com/?manage=true` หากมี announcement ที่ยังไม่เคยดู
+- **เปิด popup ซ้ำ:** คลิกไอคอน bell/megaphone (🔔) บน navbar ด้านบน → dropdown แสดงรายการ → คลิก announcement ที่ต้องการ
+
+### พฤติกรรม
+
+| ลักษณะ | รายละเอียด |
+|---|---|
+| แสดงอัตโนมัติ | Popup เปิดเมื่อ login ถ้ามี announcement ที่ browser ยังไม่ dismiss |
+| Badge count | ตัวเลข unread บน nav bell icon (อ้างอิงจาก `$rootScope.announcementBadge`) |
+| Carousel | รูปภาพใน announcement เล่น auto-slide ทุก 4 วินาที; swipe touch/mouse ได้ |
+| Lightbox | คลิกรูปใน body เพื่อดูแบบ full-screen |
+| Dismiss จำไว้ | การปิด popup บันทึกใน `localStorage` key `dismissedAnnouncements` ต่อ browser |
+| Filter โดย site type | `ShowOnDemo` (demo*.itopplus.com), `ShowOnLab` (lab*.itopplus.com), `ShowOnReal` (production) |
+
+### Key JS (for developers)
+
+| Symbol | File | บทบาท |
+|---|---|---|
+| `AnnouncementController` | `ScriptRequire/System/Announcement/Controller.js` | AngularJS controller หลัก |
+| `$scope.loadAnnouncements()` | Controller.js | fetch lite list, กรอง site type, คำนวณ badge |
+| `$scope.hydrate(id)` | Controller.js | lazy-fetch content+images รายตัวเมื่อเปิด popup |
+| `$scope.nextImage()` / `prevImage()` / `goImage(i)` | Controller.js | navigate carousel + restart auto-slide timer |
+| `isDemoOrLab()` / `isReal()` | Controller.js | ตรวจ hostname เทียบ `/^demo\d*\./` / `/^lab\d*\./` |
+| `readDismissed()` / `writeDismissed(map)` | Controller.js | localStorage persistence |
+| `announcementSwipe` directive | Controller.js | pointer/touch drag → publish `$scope.dragOffsetPx` |
+| `AnnouncementService.getActiveLite()` | `Service.js` | `GET /Announcement/GetActive` |
+
+### C# Endpoints
+
+- `POST /Announcement/GetActive` — proxy `GET {nodejs}/announcement/list` จาก PoolNode; return `[]` ถ้า timeout (silent fail)
+- `GET /Announcement/GetImage?id=…` — proxy GridFS image จาก PoolNode (หลีกเลี่ยง CORS)
+
+### Gotchas
+
+- **PoolNode ล่ม** → popup ไม่แสดง แต่ admin ยังใช้งานได้ปกติ (silent fail ไม่ throw error)
+- **Private/incognito mode** → `localStorage` อาจ block → announcement จะแสดงซ้ำทุก login (try/catch แล้ว)
+- **hostname filter เข้มงวด** — `demo.customer.com` จะไม่ถูก detect ว่าเป็น demo site (ต้อง prefix `demo` ต่อ `.itopplus.com` subdomain เท่านั้น)
+- **Infinite carousel seam** — ใช้ `scheduleSilentJump` via `setTimeout` (ไม่ใช่ `$timeout`) เพื่อหลีก digest cycle; มี `isSilentJumping` guard ป้องกัน visual glitch ตอน swipe พร้อมกัน

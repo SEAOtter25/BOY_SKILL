@@ -230,3 +230,95 @@ The branch number is also displayed after the company name in all checkout previ
 ### Gotchas
 - **Channel ที่ URL หรือ Icon ผิดรูปแบบจะหายเงียบ ๆ** — validate ตอน save ใช้ `continue` ข้ามไป ไม่มี error แจ้ง admin; ถ้าปุ่มที่เพิ่มไว้ไม่ขึ้น ให้เช็คว่า URL ขึ้นต้นด้วย `http://` / `https://` และ IconUrl ขึ้นต้นด้วย `http://` / `https://` / `/` หรือยัง
 - **ButtonText ภาษาไทยล้วนได้ Key เป็น `custom-0`, `custom-1`, …** ซึ่งผูกกับ **ลำดับใน array** — สลับลำดับช่องทางแล้ว Key อาจเปลี่ยนตาม
+
+---
+
+## Feature: ตั้งค่า Attribute Selector และ Auto-select อิสระต่อกัน (feature/shopsetting-attr-display-autoselect)
+
+ก่อนหน้านี้ setting "Show All Attributes" และ "Auto-Select First Attribute" เป็น mutually exclusive (เปิดอันหนึ่งอีกอันจะซ่อน) บัดนี้ทั้งสอง toggle เป็นอิสระต่อกัน — admin สามารถเปิดทั้งคู่ ปิดทั้งคู่ หรือเปิดแค่อันใดอันหนึ่งก็ได้ นอกจากนี้ยังเพิ่มการ persist การเลือก attribute/size ลง `sessionStorage` เพื่อ restore เมื่อ reload
+
+### วิธีเข้าถึง
+
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/ShopSetting/GeneralSetting`
+- **Sidebar:** Store → Shop Setting → **General Setting** tab
+
+### Fields
+
+| Field (EN / TH) | Type | ng-model | ค่าที่ใช้ | ผลลัพธ์ |
+|---|---|---|---|---|
+| Show All Attributes (แสดง Attribute ทุกระดับ) | radio ON/OFF | `Setting.showallAttribute` | `'1'` / `'2'` | ON = แสดง attribute ทุก level พร้อมกันตั้งแต่โหลด |
+| Auto-Select First Attribute (เลือก Attribute แรกอัตโนมัติ) | radio ON/OFF | `Setting.defaultAttributeLandingPage` | `'1'` / `'2'` | ON = auto-pick size แรก + cascade attribute ตามลำดับ |
+
+### พฤติกรรม 4 กรณี
+
+| Case | showallAttribute | defaultAttributeLandingPage | ผลบนหน้าสินค้า |
+|---|---|---|---|
+| 1 | ON (`1`) | ON (`1`) | แสดงทุก level + auto-pick size แรก + auto cascade ทุก attribute |
+| 2 | OFF (`2`) | ON (`1`) | auto-pick size แรก + cascade attribute ทีละระดับ |
+| 3 | ON (`1`) | OFF (`2`) | แสดงทุก level แต่ไม่ auto-pick (shoppers เลือกเอง) |
+| 4 | OFF (`2`) | OFF (`2`) | แสดงแค่ size; attribute unlock ทีละ level หลัง size ถูกเลือก |
+
+### Wired in (for developers)
+
+- **Admin view:** `Views/Shopcart/GlobalSetting/GeneralSetting.cshtml` — นำ `ng-if` visibility gate และ `ng-click="checkShowAllAttribute(...)"` ออกหมด ทั้งสอง radio group แสดงอยู่เสมอ
+- **ลบออก:** `$rootScope.checkShowAllAttribute(event, setting)` (ใน `getshopsetting.js` + `Checkout/Step/Controller.js`) — mutual-exclusion enforcer ถูก remove ทั้งหมด
+- **Storefront JS:** `ScriptRequire/Shopcart/FrontEnd/PickSize/Controller.js` — `getSizepick()` ถูกเรียกตั้งแต่ load เมื่อ `showallAttribute=='1'`; `groupAttributeSizeColor()` ใช้กับทุก case
+- **Storefront JS:** `ScriptRequire/Shopcart/FrontEnd/Attr/Controller.js` — `clickAttr()` cascade guarded ด้วย `isAutoSelectOff`; `reUpdateAttribute()` / `clearAttrPick()` อัปเดตแล้ว
+- **Domain ใหม่:** `ScriptRequire/domains/shopcart/shopcart-picks-persist.domain.js` — `loadShopcartPicks()` / `restoreAttrPicks()` บันทึก/restore การเลือก attribute+size ใน `sessionStorage`
+
+### Gotchas
+
+- **ไม่มี endpoint ใหม่** — ทั้งหมดอ่านจาก `ShopSettingReturn[0].showallAttribute` / `.defaultAttributeLandingPage` ที่มีอยู่แล้ว ไม่ต้อง migrate ข้อมูล
+- **Case 3 auto-pick แค่ level 0** แม้ showAll จะ ON แต่ cascade ถูกบล็อกด้วย `isAutoSelectOff` — ระดับที่สูงขึ้นยังต้องเลือกเอง
+- **sessionStorage** เก็บ pick ทุก interaction และ restore ทุก init — ถ้า browser block sessionStorage (เช่น private mode บางราย) attribute จะไม่ restore แต่ไม่ crash
+
+---
+
+## Feature: Social Order Button + Hide Cart แบบ Per-Product (feature/shopcart-per-product-social-order-and-hide-cart)
+
+ต่อยอดจาก Social Order Button (batch 3) เพิ่มการควบคุมระดับ per-product 3 อย่าง: (1) Show/Hide ปุ่ม Social Order สำหรับสินค้านี้ (2) Hide/Show ปุ่ม Add to Cart สำหรับสินค้านี้ (3) เปิด/ปิดทีละ channel สำหรับสินค้านี้ และเพิ่ม mode ใหม่ `perproductfull` ใน Shopcart Setting
+
+### วิธีเข้าถึง
+
+- **ตั้ง mode:** `https://demo110.itopplus.com/?manage=true#!/ShopSetting` → Social Order Button section → Mode radio
+- **Per-product:** `https://demo110.itopplus.com/?manage=true#!/AddProductV2` → เปิด/แก้ไขสินค้า → scroll ลงถึงส่วน "ตั้งค่าปุ่มสั่งซื้อผ่านโซเชียล (เฉพาะสินค้านี้)"
+
+### Fields (per-product)
+
+| Field (EN / TH) | Type | ng-model | ค่า Default | เงื่อนไขแสดง |
+|---|---|---|---|---|
+| Show Social Order Button (แสดงปุ่ม Social Order) | radio Yes/No | `productTH.SocialOrderVisible` | `true` (แสดง) | เฉพาะ mode `perproduct` |
+| Hide Cart Button (ซ่อนปุ่มเพิ่มลงตะกร้า) | radio Hide/Show | `productTH.HideCartButton` | `false` (แสดง) | ทุก Social Order mode |
+| Per-channel toggles (เปิด/ปิดแต่ละช่องทาง) | checkbox array | `productTH.SocialOrderChannelEnabled[$index]` | `true` ทุก channel | เฉพาะ mode `perproduct` |
+
+### Mode ของ Social Order Button
+
+| Mode Value | ความหมาย |
+|---|---|
+| `global` | ใช้ channel URLs จาก Shopcart Setting ทุกสินค้า |
+| `perproduct` | แต่ละสินค้ามี URL + ตั้งค่า channel เป็น per-product |
+| `perproductfull` | mode ใหม่ — pass-through เหมือน perproduct บน frontend (ยังรอ UI distinct) |
+
+### C# Model fields ที่เพิ่ม
+
+```csharp
+// ShopComponent.cs > Shopproduct class
+public bool? SocialOrderVisible { get; set; }   // null = แสดง (backward safe)
+public bool? HideCartButton { get; set; }        // null = แสดง Cart (backward safe)
+public List<bool?> SocialOrderChannelEnabled { get; set; }
+```
+
+### Wired in (for developers)
+
+- **Admin view:** `Views/Shopcart/ShopBackEnd/AddProductV2.cshtml` — Social Order section แสดงแม้ไม่ใช่ perproduct mode (สำหรับ HideCartButton); เพิ่ม radio + checkbox + warning div
+- **Public views:** `Views/Component/Shopcart/cart/ProductDetail.cshtml` + `ProductDetail_Custom_01.cshtml` — Cart button wrap ด้วย `@if (!productHideCart)`; Social block wrap ด้วย `@if (socialEnabled && productSocialVisible)`; per-channel loop skip disabled channel
+- **PoolNode schema:** `shop_productsSchema` เพิ่ม `SocialOrderVisible: Boolean` + `HideCartButton: Boolean`
+- **PoolNode controller:** `shopproduct.js` — ทุก save path (create/update/duplicate) write ทั้งสอง field ด้วย case-insensitive boolean parse (`!== false && !== 'false'`)
+- **Admin JS:** `ScriptRequire/System/Shopcart/Backend/getproductbyid.js` + `Controller.js (ManageProduct)` — load/save `SocialOrderVisible`, `HideCartButton`, `SocialOrderChannelEnabled`
+
+### Gotchas
+
+- **Guard ทำงานเฉพาะเมื่อ `socialEnabled`** — ถ้า Shopcart Setting ปิด Social Order Button field เหล่านี้ไม่มีผลใดๆ
+- **ค่า null = แสดงตามปกติ** — สินค้าเก่าที่ไม่มี field นี้จะ render เหมือนเดิม ไม่ต้อง migrate
+- **Warning ใน admin** จะแจ้งเตือนเมื่อ HideCartButton=true + SocialOrderVisible=false พร้อมกัน (ลูกค้าจะสั่งซื้อไม่ได้เลย)
+- **`SocialOrderChannelEnabled` checkbox** ใช้ `ng-init` default-true บน `ng-repeat` iteration แรก — idempotent เพราะ read ค่าตัวเองก่อน flip

@@ -130,3 +130,63 @@ No admin action is required — the tag is auto-injected. To verify:
 - The exact public-render wiring of `config.Title/Keywords/Description/CanonicalURL/OGFacebook` into the rendered `<head>` (and bot/SEO render) was not traced; the PoolNode `Local/render/seo/` directory exists (`index.js`) but its read of these fields was not opened. Treat the "Effect" column as the field's intent, verified at the config layer, not at the final HTML output.
 - `2MainDetail.cshtml` is included via `Page/GotoView?ViewData=2MainDetail` (and referenced from `_PagePropertiesModal.cshtml`); confirmed it holds the per-page SEO fields, but the GotoView resolution to this exact file is inferred from the matching filename/scope, not from reading GotoView.
 - `.bItpCanonical` / `.bItpCustomURL` wrapper classes suggest per-domain visibility toggles for the Canonical / Custom-URL fields; the toggling logic was not traced.
+
+---
+
+## Feature: Auto Generate Canonical Tag (URL) (feature/autogen-canonical-setting)
+
+เพิ่ม toggle ระดับ site ใน Website Settings สำหรับให้ระบบสร้าง canonical tag อัตโนมัติบนทุกหน้าที่ยังไม่ได้กำหนด Canonical URL ด้วยตัวเอง URL ที่ generate จะอยู่ในรูป `https://[www.]domain/PageName/PageID`
+
+### วิธีเข้าถึง
+
+**Toggle ระดับ site:**
+- Route: `https://demo110.itopplus.com/?manage=true#!/Theme` → tab Options (General Settings)
+- Field label (TH): "เปิดใช้งาน Auto Generate Canonical Tag (URL) สำหรับหน้าที่ไม่ได้กำหนด Canonical เอง"
+- ng-model: `config.bAutoGenCanonical` (checkbox)
+
+**Per-page Canonical URL:**
+- Route: `https://demo110.itopplus.com/?manage=true#!/Page` → เลือกหน้า → tab SEO
+- Field: Canonical URL input — เมื่อ `bAutoGenCanonical = true` จะแสดง placeholder เป็น URL ที่จะถูก generate, พร้อม Copy + Reset button
+
+### Fields ในหน้า Page Manager (เมื่อ bAutoGenCanonical = ON)
+
+| Field / Control | Type | ng-model | หมายเหตุ |
+|---|---|---|---|
+| Canonical URL | text input | `SelectPageConfig.CanonicalURL` | ถ้าเว้นว่าง = ใช้ auto-gen; กรอกเองเพื่อ override |
+| (Placeholder) | auto text | — | แสดง URL ที่ระบบจะ generate โดย `buildAutoCanonical()` |
+| Copy | button | — | copy auto-gen URL ไป clipboard; แสดง "Copied!" 2 วินาที |
+| Reset | button | — | เคลียร์ manual URL กลับเป็น auto-gen |
+| Hint text | info label | — | "Auto generate will apply when this field is empty" |
+
+### Logic การ generate URL
+
+```
+https://[www.]domain/encodedPageName/pageId
+```
+
+- เว้น `www.` ถ้า domain มี `itopplus.` หรือ `theiconweb.` หรือเป็น `localhost`
+- ถ้า `bDisableUrlCharTransform` ON จะแทน `/` ใน pageName ด้วย `_Sla_`
+- **Server-side (PoolNode):** `SEORender` ใน `LocalService/src/controllers/Local/render/seo/index.js` inject canonical เข้า `<head>` ก็ต่อเมื่อ `cmpConfig.config.bAutoGenCanonical === true` AND ทั้ง `page.CanonicalURL` และ `PageConfig.CanonicalURL` ว่างเปล่า
+
+### C# Model + PoolNode
+
+- **C# `Config.cs`:** เพิ่ม `public bool bAutoGenCanonical { get; set; }` + ต่อ `getQueryString()` → `&bAutoGenCanonical=true/false`
+- **PoolNode `DB.js` `ConfigSchema`:** เพิ่ม `bAutoGenCanonical: Boolean`
+- **PoolNode `config.js`:** `saveConfig` parse string `'true'`/`'false'` → store; default `false` ถ้าไม่มีใน body
+
+### Wired in (for developers)
+
+- **Admin JS:** `ScriptRequire/System/PageManager/Controller.js`
+  - `$scope.buildAutoCanonical(pageName, pageId)` — build URL string
+  - `$scope.copyAutoCanonical(pageName, pageId)` — copy to clipboard + feedback
+  - `$scope.canonicalCopied` — bool สำหรับ "Copied!" label
+  - Save validation: ถ้า `CanonicalURL` ไม่ว่างและลงท้ายด้วย special char (`[^a-zA-Z0-9฀-๿]$`) → toastr warning + abort save
+- **Views:** `Views/Page/2MainDetail.cshtml` — Canonical input + dynamic placeholder + Copy/Reset div (ซ่อนเมื่อ `bAutoGenCanonical = false`)
+- **Views:** `Views/Theme/5Options.cshtml` — checkbox toggle ในแท็บ General Settings
+
+### Gotchas
+
+- **`www.` prefix เช็คทั้งฝั่ง frontend และ PoolNode** — logic เหมือนกัน ถ้า DomainName มี `www.` อยู่แล้วและ domain ไม่ match pattern จะไม่ double prefix (guard `dn.indexOf('www.') === -1`)
+- **Empty-only activation** — แค่ space เดียวใน Canonical URL ก็ bypass auto-gen ของหน้านั้น
+- **บังคับ false เมื่อ upgrade** — `saveConfig` default `false` ถ้าไม่มี key → enable แบบ opt-in ไม่มีผลกระทบต่อ site เก่า
+- **ทำงานเฉพาะ page ที่มี object `page`** — home/special routes ที่ไม่มี page object จะไม่ได้รับ canonical inject
