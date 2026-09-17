@@ -103,3 +103,60 @@ The Layout Manager is a drag-and-drop canvas plus a 3-panel toolbar, not a form.
 - **Config-gated palette items, not domain whitelists.** Which components appear in the palette is driven by per-domain config flags (`Domain.bCommerce`, `Config.bEsim`, `bJewelryManagement`, `bCustomBookingByDate`, `bCustomExcelSearch`, `bMemberCoursesSystem`, `Config.Optimization.bAdvanceOptimize`/`bFormOptimize`). This is the correct per-domain-toggle pattern (no hardcoded DomainID whitelist was found in these sources).
 - **Save then Apply/Publish.** Component add/move/delete persist immediately, but pushing changes live still goes through the platform's Apply/publish step (panel 3 has a per-page "Publish All Content"); "saved but the live site didn't change" usually means publish wasn't run.
 - **The catch-all SPA trap.** `layoutmanager` is a client AngularJS hash route, not a server controller route. If `RenderPartialFileLayout` ever returns the SPA shell instead of the page markup, suspect a routing/whitelist issue (see the RouteConfig controller-whitelist note in the project CLAUDE.md).
+
+---
+
+## Feature: Scroll Reveal Animation บน Component (feature/scroll-reveal-component-config)
+
+แต่ละ component สามารถตั้งค่าให้เล่น animation ตอน scroll เข้า viewport ได้ผ่าน panel "Scroll Reveal" ใน toolbar ข้างซ้าย รองรับทิศทาง 8 แบบ ระยะ ความเร็ว delay opacity scale และ easing นอกจากนี้ยังมีระบบ "Shared Preset" ให้กำหนดค่าชุดเดียวแล้วใช้กับหลาย component พร้อมกัน
+
+### วิธีเข้าถึง
+
+- **Sidebar:** Layout Manager → hover component ใดก็ได้ → toolbar ซ้าย → panel **"Scroll Reveal"** (ไอคอน `glyphicon-eye-open`)
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Component` (หน้าไหนก็ได้)
+
+### Fields
+
+| Field (EN / TH) | Type | ng-model | ค่า Default | หมายเหตุ |
+|---|---|---|---|---|
+| Enable Scroll Reveal | checkbox | `srEnabled` | false | เปิด/ปิด animation; เปิดครั้งแรกจะ init `srConfig` ด้วยค่า default |
+| Origin (ทิศทาง) | select | `srConfig.origin` | `bottom` | top / bottom / left / right / top-left / top-right / bottom-left / bottom-right |
+| Distance (ระยะ px) | number (0–500) | `srConfig.distanceNum` | `40` | disabled เมื่อเลือกทิศทางแนวทแยง (diagonal) |
+| Duration (ms) | number (0–5000) | `srConfig.duration` | `600` | ความเร็ว animation (ms) |
+| Delay (ms) | number (0–3000) | `srConfig.delay` | `0` | หน่วง animation กี่ ms ก่อนเริ่ม |
+| Opacity | range slider (0–1) | `srConfig.opacity` | `0` | ค่า opacity เริ่มต้นก่อน reveal |
+| Scale | number (0–2) | `srConfig.scale` | `1.0` | ขนาดเริ่มต้นก่อน reveal |
+| Easing | select | `srConfig.easing` | `ease` | ease / linear / ease-in / ease-out / ease-in-out |
+| Use Shared Preset | checkbox | `srConfig.shared` | false | ใช้ค่าจาก SrSharedPreset แทนค่าตัวเอง |
+
+### ฟีเจอร์ Shared Preset
+
+เมื่อ tick **Use Shared Preset** ค่า SR ของ component จะถูกแทนที่ด้วย `SrSharedPreset` จาก site Config และค่าเดิมจะถูก backup ไว้ใน `srConfig.customBackup` อัตโนมัติ เมื่อ untick จะ restore ค่าเดิมกลับมา Preset นี้บันทึกผ่าน endpoint `POST /LocalConfig/saveSrSharedPreset`
+
+### Common tasks
+
+**เปิด Scroll Reveal บน component**
+1. ใน Layout Manager hover component → คลิก toolbar ซ้าย → เปิด panel "Scroll Reveal"
+2. Tick **Enable Scroll Reveal**
+3. เลือก **Origin** (ทิศทางที่ element จะ "เลื่อนเข้ามา"), ปรับ Distance / Duration / Delay ตามต้องการ
+4. Save component config ตามปกติ (คลิก Save หรือ Ctrl+S)
+
+**ใช้ Shared Preset กับหลาย component**
+1. ตั้งค่า SR บน component ตัวหนึ่ง → คลิก **Save as Shared Preset** เพื่อ push ค่าขึ้น `LocalConfig/saveSrSharedPreset`
+2. บน component อื่นที่ต้องการ → tick **Use Shared Preset** → ค่าจะเปลี่ยนทันที
+3. เมื่อแก้ Preset ทุก component ที่ tick Shared จะได้ค่าใหม่โดยอัตโนมัติ
+
+### Wired in (for developers)
+
+- **Admin JS:** `ScriptRequire/Component/ComponentConfig/Controller.js` — `$scope.toggleSR()`, `srEnabled`, `srConfig.*`
+- **C# models:** `Models/Component/Component.cs` — `srConfigClass`; `Models/Config/Config.cs` — `SrSharedPreset` + `srSharedPresetJSON` (injected as JS global ใน `_LayoutServer.cshtml`)
+- **C# helper:** `HtmlHelperExtensions.ScrollRevealClass(cmp)` + `ScrollRevealClass.ScrollRevealScript(cmp)` — validate + emit CSS class + inline `<script>` สำหรับ SR บน Razor layout templates
+- **PoolNode schema:** `LocalService/src/connections/DB.js` — `srConfig` sub-document ใน `styleCss` array (Mongoose strict-mode safe)
+- **PoolNode render:** EJS layout templates ทุกแบบ include `_sr_init.ejs` (lazy-load ScrollReveal lib) + emit `_srClass` + inline script
+- **Endpoint:** `POST /LocalConfig/saveSrSharedPreset` → `configRepo.saveSrSharedPreset` → PoolNode
+
+### Gotchas
+
+- **ทิศทางแนวทแยง (top-left, top-right, bottom-left, bottom-right)** ไม่ใช้ ScrollReveal `origin`+`distance` แต่ใช้ CSS `transform: translate(±px, ±px)` ผ่าน `beforeReveal`/`afterReveal` hooks แทน ช่อง Distance จะ disabled อัตโนมัติ
+- **Mobile ถูก suppress:** ถ้า `window.innerWidth <= 768` ScrollReveal จะไม่ init เลย animation จะไม่แสดงบนมือถือ
+- **ค่าที่ backup ใน `customBackup` persist ลง MongoDB** — หากสลับ Shared Preset กลับไปกลับมาหลายครั้ง ค่าเดิมจะคืนได้ถูกต้องแม้ refresh หน้า

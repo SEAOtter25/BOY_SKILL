@@ -185,3 +185,52 @@ Left rail = draggable items. Each is dropped into a layout column on the canvas,
 - Field types are numeric (`type` 0–15). The builder's Save (`GenerateFormCtrl.save`) hand-serializes each type's inner HTML; types share ids between two "flavours" (e.g. Short Input = 2 or 15, Single Choice = 5 or 13, Multiple Choice = 6 or 14) so changing the markup template for one variant won't affect the other.
 - New forms auto-seed recipients from the site-owner email (`ManageAccountService.GetsiteOwner`), so a form created with no Config edits still emails the owner.
 - `ViewFormControl.cshtml` / `generateForm.cshtml` are admin views (`?manage=true`); per project rules the UTF-8 BOM requirement applies to any full rewrite.
+
+---
+
+## Feature: Placeholder และ Force First Value บน Selectbox Field (feature/form-dropdown-placeholder)
+
+เพิ่มสองตัวเลือกใน modal "Selectbox Manage" ของ Form Manager: (1) **Placeholder** — ข้อความ hint ที่ไม่ใช่ค่าจริง แสดงเป็น option แรกสีเทา (non-selectable) เพื่อแนะนำให้ user เลือก และ (2) **Force First Value** — บังคับเลือก option จริงแรกอัตโนมัติเมื่อ form render (mutually exclusive กับ Placeholder)
+
+### วิธีเข้าถึง
+
+- Route: `https://demo110.itopplus.com/?manage=true#!/FormManager`
+- Sidebar: Form Manager → เลือก form ที่มี Dropdown/Selectbox field → คลิกไอคอน gear/แก้ไขบน field นั้น → modal **"Selectbox Manage"**
+
+### Fields ที่เพิ่มใน Selectbox Manage modal
+
+| Field (EN / TH) | Type | ng-model | หมายเหตุ |
+|---|---|---|---|
+| Placeholder | text input | `$scope.selectPlaceholder` | ข้อความ hint; เมื่อกำหนด model เริ่มเป็น `""` (ว่าง) |
+| Force first value (บังคับใช้ค่าแรก) | checkbox | `$scope.selectForceFirst` | เมื่อ ON → Placeholder input ถูก disable; auto-select option แรกบน public form |
+
+### พฤติกรรม
+
+| กรณี | Placeholder | forceFirstValue | ผลบน public form |
+|---|---|---|---|
+| ไม่กำหนดทั้งคู่ | ว่าง | false | dropdown เริ่มที่ option แรก (พฤติกรรมเดิม) |
+| กำหนด Placeholder | มีข้อความ | false | option แรกเป็น hint สีเทา; model = `""` จนกว่าเลือก |
+| Force First Value | disabled | true | auto-select option แรกทันที; Placeholder ไม่ทำงาน |
+
+### Wired in (for developers)
+
+- **Admin JS:** `ScriptRequire/Component/Form/Backend/ManageInputOption.js`
+  - `$scope.selectPlaceholder` — bound placeholder text input
+  - `$scope.selectForceFirst` — bound force-first checkbox
+  - `$scope.addSelectbox(textselectbox, require, subjectEmail, selectPlaceholder, selectForceFirst)` — save option list + write `placeholder` + `forceFirstValue` ลง `$scope.selectbox[index]`
+
+- **Draw functions** (ทุก path รับ `placeholder` + `forceFirstValue` และ emit `<option value="" disabled selected>placeholder</option>` เมื่อ placeholder กำหนด):
+  - `DrawFormType4.js` (backend draw)
+  - `InLayout4.js` (backend in-layout)
+  - `FrontEnd/DrawFormType/DrawFormType4.js`
+  - `FrontEnd/DrawFormLayoutType/Type4.js`
+
+- **C# model** (`Models/Form/form.cs`): `selectboxConfig` class เพิ่ม `public string placeholder` + `public bool forceFirstValue`
+- **PoolNode schema** (`LocalService/src/connections/DB.js`): `selectboxConfig` Mongoose sub-schema เพิ่ม `placeholder: String` + `autoSelectFirst: Boolean` / `forceFirstValue: Boolean`
+
+### Gotchas
+
+- **AngularJS ng-options digest wipe:** หลัง `addSelectbox` ทำงาน AngularJS re-render `ng-options` จะลบ `<option>` ที่ inject ด้วยมือทิ้ง มีการใช้ `$timeout` / post-digest re-prepend เพื่อ restore placeholder option (หลายครั้งตาม fix commit)
+- **Require validation bug (แก้แล้ว):** validator เดิม short-circuit บน `v == '0'` แต่ placeholder ทำ `v = ''` ทำให้ validation ผ่านโดยไม่ควร — ลบ guard `v=='0'` ออกแล้ว
+- **Modal re-open state:** `$scope.require` และ `$scope.selectForceFirst` ต้องอ่านจาก live scope/DOM ทุกครั้งที่เปิด modal — หลาย fix commit ดูแล stale state กรณีเปิด modal ครั้งที่ 2
+- **formModel override:** loop เดิมบน `i == 0` set `formModel[i].text = firstOption` ทับค่า; แก้ให้ skip เมื่อ placeholder active
