@@ -75,3 +75,52 @@ Menu template **Menu with Image 12** (`Menu_with_image12.cshtml`) รองร�
 ## Uncertainties
 - `6Menu.cshtml` does not expose a visible Bootstrap-vs-Kendo toggle; `changemenuType()` exists in the controller but no `ng-click` for it appears in this view, and the color picker hard-sets `menuType = 'bootstrap'`. Whether Kendo templates are reachable from this screen in practice is unclear from the markup alone.
 - "How menu items map to pages" is not configured on this screen — only the template/style is chosen here. The actual link-to-page wiring lives elsewhere (page management / the live menu component), which is out of scope for these files.
+
+---
+
+## Feature: Menu with Image 39 (`feature/menu-navbar-with-image-39`)
+
+เพิ่ม Mega Menu template ใหม่ **"Menu with image 39"** (type 40) — mega menu ที่มี image slot ใน column ต่อ menu item รองรับการวาง image ประกอบแต่ละ column ของ mega menu
+
+### วิธีเข้าถึง
+
+- **Route (เลือก template):** `https://demo110.itopplus.com/?manage=true#!/Menu` → คลิก **Select a new menu style** → เลือก template "Menu with image 39"
+- **Route (เปิดใช้งาน):** `https://demo110.itopplus.com/?manage=true#!/WebConfig` → General tab → **"Enable other format menus"** → เลือก type 40 "Menu with image 39"
+
+### พฤติกรรม / Fields
+
+| ลักษณะ | รายละเอียด |
+|---|---|
+| Template type | Type 40 "Menu with image 39" |
+| Image slot | แต่ละ column ของ mega menu มี image slot สำหรับวางรูปประกอบ menu item |
+| ตั้งค่า image | เข้า Page Manager → gear ของหน้าที่ต้องการ → รูปภาพ menu |
+
+### Gotchas
+
+- Template นี้เป็น template ใหม่ — ต้อง Apply หลัง save เพื่อให้ live site อัพเดต
+- image slot ตั้งค่าผ่าน Page Manager (gear icon) ไม่ใช่ใน Menu Manager โดยตรง
+
+---
+
+## Feature: Per-Page Mega Menu Toggle (`feature/menu-navbar-default-megamenu`)
+
+เพิ่ม toggle เปิด Mega Menu mode แบบ **per-page** สำหรับ default navbar — แต่ละหน้าสามารถเปิด/ปิด mega menu layout ของ header ได้อิสระ
+
+### วิธีเข้าถึง
+
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/PageManager` → เลือกหน้าที่ต้องการ → tab **Additional Settings**
+- หรือ Page Properties modal (gear icon บน page row) → tab **Additional Settings**
+
+### พฤติกรรม / Fields
+
+| Field (EN / TH) | Type | Effect |
+|---|---|---|
+| Enable Mega Menu (เปิด Mega Menu สำหรับหน้านี้) | Checkbox | `ng-model: SelectPage.bMegaMenu` — เปิด = navbar ใน header ของหน้านั้นแสดงแบบ mega menu layout (connected boxes) |
+
+- เมื่อเปิด: navbar ของหน้านั้นจะ render ในโหมด mega menu layout
+- หน้าอื่นที่ไม่ได้เปิด toggle ยังคงใช้ navbar แบบปกติ
+
+### Gotchas
+
+- เป็น per-page setting — ต้องเปิดทีละหน้าที่ต้องการ; ไม่มี global toggle
+- ต้อง Save และ Apply หลังเปลี่ยนค่า

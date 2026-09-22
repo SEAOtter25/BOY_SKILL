@@ -157,7 +157,7 @@ See `specialized-modules.md`.
 
 ---
 
-## Feature: Announcement Popup สำหรับ Admin (feature/admin-announcement-popup)
+## Feature: Announcement Popup สำหรับ Admin (`feature/admin-announcement-popup`)
 
 เมื่อ admin login เข้าหลังบ้าน จะมี modal popup แสดง announcement จาก iTopPlus โดยอัตโนมัติ รองรับหลาย announcement, carousel รูปภาพ, lightbox, และ badge แจ้งเตือนบน navbar ไม่มีหน้า admin สำหรับสร้าง announcement — ข้อมูลถูก author ในฐานข้อมูล PoolNode โดยตรง
 
@@ -195,9 +195,59 @@ See `specialized-modules.md`.
 - `POST /Announcement/GetActive` — proxy `GET {nodejs}/announcement/list` จาก PoolNode; return `[]` ถ้า timeout (silent fail)
 - `GET /Announcement/GetImage?id=…` — proxy GridFS image จาก PoolNode (หลีกเลี่ยง CORS)
 
+
 ### Gotchas
 
 - **PoolNode ล่ม** → popup ไม่แสดง แต่ admin ยังใช้งานได้ปกติ (silent fail ไม่ throw error)
 - **Private/incognito mode** → `localStorage` อาจ block → announcement จะแสดงซ้ำทุก login (try/catch แล้ว)
 - **hostname filter เข้มงวด** — `demo.customer.com` จะไม่ถูก detect ว่าเป็น demo site (ต้อง prefix `demo` ต่อ `.itopplus.com` subdomain เท่านั้น)
 - **Infinite carousel seam** — ใช้ `scheduleSilentJump` via `setTimeout` (ไม่ใช่ `$timeout`) เพื่อหลีก digest cycle; มี `isSilentJumping` guard ป้องกัน visual glitch ตอน swipe พร้อมกัน
+
+---
+
+## Feature: Login History (`feature/login-history-admin-page`)
+
+เพิ่มหน้า **Login History** ใหม่ใน admin sidebar สำหรับดู log การ login ทั้งหมดในระบบ แสดงรายการแบบ paginated พร้อมวันเวลา, username, IP address และ device/browser
+
+### วิธีเข้าถึง
+
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/LoginHistory`
+- **Sidebar:** อยู่ในกลุ่ม Settings / System (ตั้งค่าระบบ)
+
+### พฤติกรรม / Fields
+
+| Column | รายละเอียด |
+|---|---|
+| วันเวลา (Date/Time) | Timestamp ของการ login แต่ละครั้ง (แสดงใน local timezone — ดูหัวข้อถัดไป) |
+| Username | ชื่อผู้ใช้ที่ login |
+| IP Address | IP ของ client ที่ login |
+| Device / Browser | User-agent string แสดง device และ browser ที่ใช้ |
+
+- แสดงผลแบบ paginated list
+- View: `ViewLoginHistory.cshtml`
+- Controller: `System/Login/History/Controller.js`
+- Backend endpoint: `GET /GetLoginHistory` ใน `LoginController.cs`
+
+### Gotchas
+
+- หน้านี้เป็นหน้าใหม่ — ถ้า sidebar ไม่แสดง ให้ตรวจสอบว่า route `#!/LoginHistory` ถูก register ใน `Server.js` แล้ว
+
+---
+
+## Feature: Login History — UTC Timestamp Fix (`feature/login-history-utc-timestamp`)
+
+แก้ bug เวลา login ใน Login History แสดงเป็น UTC raw (เวลาไม่ตรง timezone ของผู้ดูแล) — เปลี่ยนให้แปลงเป็น local timezone ของ browser ก่อนแสดงผล
+
+### วิธีเข้าถึง
+
+- ทำงานอัตโนมัติ — ไม่มี admin toggle หรือ config ใหม่
+- ผลลัพธ์เห็นได้ที่: `?manage=true#!/LoginHistory`
+
+### พฤติกรรม
+
+- เวลาที่แสดงใน Login History ตอนนี้ตรงกับ timezone ของ browser ที่กำลังดูอยู่ (แทนที่จะเป็น UTC raw)
+- fix ทำงานฝั่ง client-side โดย JavaScript แปลง UTC timestamp เป็น local time ก่อน render
+
+### Gotchas
+
+- ถ้า browser ของ admin ตั้ง timezone ต่างกัน เวลาที่แสดงก็จะต่างกัน — ซึ่งเป็นพฤติกรรมที่ถูกต้องตาม spec

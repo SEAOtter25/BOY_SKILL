@@ -157,3 +157,119 @@ The standalone "Logo website" box is `hidden` in the current build, so use this 
 - **Default-language change ripples across caches.** Changing the Default Language here touches Mongo `LangEnable`, the C# session "Config", and app-scope `renderConfig` (see MEMORY: "Language default lost = 3 cache layers").
 - **Multi-tenant: clean.** Every toggle keys off `config.*` per-`DomainID`; no hardcoded-domain whitelist found in this view, its controller, or `getQueryString()`. The `bHideWatermarkItopplus` / `bItpCustomURL` CSS wrapper classes are styling hooks, not domain whitelists. Social login is gated only by `isHttps` (scheme), not by domain. Keep new features per-domain-toggleable, never domain-listed.
 - **Save bar does not follow `applyReady`.** Per `ScriptRequire/CLAUDE.md`, WebConfig's `saveData` does not set `$rootScope.applyReady = false`, so the sticky savebar omits the `--with-apply` slide-up modifier. Ctrl+S is wired to the Save button via an inline script.
+
+---
+
+## Feature: YouTube Thumbnail ความละเอียดสูง (`feature/embed-thumbnail-maxres`)
+
+toggle เลือก YouTube thumbnail ความละเอียดสูง (maxresdefault 1280×720) แทน default (hqdefault 480×360)
+
+### วิธีเข้าถึง
+- **Route:** `?manage=true#!/WebConfig` → General tab → section General Display
+- **Field:** "แสดง YouTube Thumbnail ความละเอียดสูง (HD)" toggle
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| แสดง YouTube Thumbnail ความละเอียดสูง (HD) (`config.bYtMaxResThumbnail`) | toggle | เปิด = ใช้ `maxresdefault.jpg` (1280×720); ปิด = ใช้ `hqdefault.jpg` (480×360) | Default: ปิด (hqdefault) |
+
+### Gotchas
+- บางวิดีโอ YouTube อาจไม่มี maxresdefault — จะ fallback เป็น 404 ถ้า thumbnail นั้นไม่มี
+- ต้อง Save + Apply หลังเปลี่ยน
+
+---
+
+## Feature: Monaco Editor สำหรับ CSS และ META (`feature/webconfig-monaco-code-editors`)
+
+CSS editor และ META editor เปลี่ยนเป็น Monaco Editor (VS Code engine) — syntax highlight, collapsible panel, warn invalid CSS
+
+### วิธีเข้าถึง
+- **Route (CSS):** `?manage=true#!/WebConfig/css`
+- **Route (META):** `?manage=true#!/WebConfig/meta`
+
+### พฤติกรรม / Fields
+| พฤติกรรม | รายละเอียด |
+|---|---|
+| Syntax highlight | CSS/META highlight เหมือน VS Code |
+| Warn invalid CSS | แสดง warning เมื่อ CSS ไม่ถูกต้อง |
+| Collapsible panel | ย่อ/ขยาย panel ได้ |
+| Fullscreen (CSS only) | ปุ่ม fullscreen บน CSS editor |
+
+### Gotchas
+- legacy CodeMirror editor ถูกแทนที่ด้วย Monaco — ถ้าเจอ editor แบบเดิม (CodeMirror) แสดงว่า feature ยังไม่ได้ deploy
+- Monaco โหลด bundle ใหม่ — อาจใช้เวลาโหลดครั้งแรกนานกว่าเล็กน้อย
+
+---
+
+## Feature: CSS Textarea Auto-Expand (`feature/css-editor-auto-expand`)
+
+CSS textarea แบบ legacy (ก่อน Monaco) ขยายความสูงอัตโนมัติตามเนื้อหาที่พิมพ์
+
+### วิธีเข้าถึง
+- ไม่มี toggle — ทำงานอัตโนมัติบน legacy CSS textarea
+
+### พฤติกรรม / Fields
+| พฤติกรรม | รายละเอียด |
+|---|---|
+| Auto-expand | ใช้ `scrollHeight` ขยาย textarea อัตโนมัติเมื่อพิมพ์เพิ่ม |
+
+### Gotchas
+- ใช้กับ legacy textarea เท่านั้น — ถ้า Monaco ถูก deploy แล้ว feature นี้ไม่มีผล
+- ป้องกัน scroll bar ใน textarea ที่รบกวน editing
+
+---
+
+## Feature: Default Font สำหรับ Editor ทั้งไซต์ (`feature/editor-default-font-toggle`)
+
+admin เลือก default font ที่จะใช้ใน rich-text editor ทุกหน้าของไซต์
+
+### วิธีเข้าถึง
+- **Route:** `?manage=true#!/WebConfig` → General tab
+- **Field:** "Default Font สำหรับ Editor" dropdown
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| Default Font สำหรับ Editor (`config.sEditorDefaultFont`) | dropdown | font ที่เลือกจะเป็น default font ใน rich-text editor ทุกหน้า | ต้อง Save + Apply หลังเปลี่ยน |
+
+### Gotchas
+- กระทบ Kendo rich-text editor ทุกหน้าของไซต์ (Content Manager, Form, ฯลฯ)
+- ไม่กระทบ font ที่ผู้ใช้เลือก override เองในแต่ละ block
+
+---
+
+## Feature: ซ่อน Notification Badge เมื่อ Count = 0 (`feature/hide-zero-notification-badges`)
+
+ซ่อน badge notification อัตโนมัติเมื่อ count เป็น 0 และ sync unread count บน navbar แบบ realtime
+
+### วิธีเข้าถึง
+- ไม่มี admin toggle — behavior fix อัตโนมัติ
+
+### พฤติกรรม / Fields
+| พฤติกรรม | รายละเอียด |
+|---|---|
+| ซ่อน badge เมื่อ count = 0 | badge ไม่แสดงเมื่อไม่มี notification ใหม่ |
+| Realtime sync | unread count บน navbar อัปเดตทันทีเมื่อมีข้อความใหม่หรืออ่านแล้ว |
+
+### Gotchas
+- ไม่มีสิ่งที่ต้องตั้งค่า — ทำงานอัตโนมัติ
+- ถ้าเห็น badge แสดงเลข 0 อยู่ แสดงว่า feature นี้ยังไม่ได้ deploy
+
+---
+
+## Feature: ลบ LINE Notify Integration (`feature/remove-line-notify`)
+
+LINE Notify integration ถูกลบออกจากระบบทั้งหมดแล้ว เนื่องจาก LINE Notify ปิดบริการ
+
+### วิธีเข้าถึง
+- ไม่มี field ให้กรอกอีกต่อไป
+
+### พฤติกรรม / Fields
+| เดิม | ใหม่ |
+|---|---|
+| มี field LINE Notify Token ให้กรอกใน WebConfig | ไม่มี field LINE Notify แล้ว |
+
+### Gotchas
+- ถ้าเคยตั้งค่า LINE Notify Token ไว้ → ค่านั้นไม่มีผลแล้ว ไม่มี notification ส่งผ่าน LINE Notify อีกต่อไป
+- ระบบ notification อื่น (Email, LINE OA ผ่าน Messaging API) ยังทำงานได้ตามปกติ
+- ผู้ที่ต้องการ LINE notification ควรติดต่อ iTopPlus เพื่อสอบถาม LINE Messaging API แทน
