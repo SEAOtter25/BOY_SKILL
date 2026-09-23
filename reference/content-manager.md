@@ -312,3 +312,196 @@ Content ที่ใช้ **Scheduler** (ตั้งเวลาแสดง�
 ### Gotchas
 - ทำงานเฉพาะ template 55 — ถ้าเปลี่ยน Block ไปใช้ layout อื่น swipe จะหายไป
 - `initTabSlideTouchDrag` ถูกเรียกผ่าน `ng-init` ไม่ใช่ directive — ถ้า component ถูก re-render โดยไม่ผ่าน compile ใหม่ listener จะไม่ผูกซ้ำ (โดยตั้งใจ ตาม `dataset.touchDragInited`)
+
+---
+
+## Feature: Active/Inactive Toggle Per-Item (`feature/contentmanager-active-toggle`)
+
+Toggle เปิด/ปิดการแสดงผลของ content item แต่ละรายการจากหน้า list โดยตรง โดยไม่ต้องเปิด editor
+
+### วิธีเข้าถึง
+- **Route:** `?manage=true#!/Contentmanager`
+- **Field:** Badge toggle ที่แต่ละแถวใน list
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| Active toggle / สถานะใช้งาน | toggle badge per row | คลิก = สลับ `manager.bActive` ทันที → เรียก `ContentmanagerService.updateFlags`; ถ้า server ตอบ `'ERROR'` ค่าจะ revert กลับ | Inactive = ซ่อนจากหน้าเว็บ แต่ยังอยู่ใน list (ต่างจาก Draft ที่ซ่อนรอ publish); ต่างจาก `bEnable` (comment) และ `bSticky` (pin) |
+
+### Gotchas
+- item ใหม่จะ active (true) โดย default จาก server
+- toggle นี้ **ไม่** trash item — item ยังค้างอยู่ใน list เสมอ
+
+---
+
+## Feature: Custom Display Date Toggle + Save Fix (`feature/contentmanager-displaydate-save-fix`)
+
+เพิ่ม toggle `bCustomDisplayDate` สำหรับกำหนดวันที่แสดงผล (Display Date) เองในหน้า editor พร้อมแก้ bug วันที่ไม่ persist หลัง save
+
+### วิธีเข้าถึง
+- **Route:** `?manage=true#!/Contentmanager/edit:contentId` → แถบ config ขวามือ
+- **Field:** "กำหนดวันที่แสดงผลเอง" toggle → เปิดแล้วจะแสดง date picker
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| กำหนดวันที่แสดงผลเอง (`bCustomDisplayDate`) | toggle | เปิด = แสดง date picker ให้เลือก Display Date | เมื่อ toggle ปิด ค่า Display Date จะไม่ถูกส่งไปกับ save payload |
+| Display Date | date-time picker | วันที่ที่จะแสดงผลบนหน้าเว็บ (อาจต่างจาก created date) | แก้ bug: ก่อนหน้านี้วันที่ที่กำหนดจะหายหลัง save เนื่องจาก payload binding ผิด |
+
+### Gotchas
+- bug เดิมคือวันที่ไม่ persist เพราะ field ไม่ถูก include ใน save payload เมื่อ toggle ปิด
+
+---
+
+## Feature: Mobile Lightbox สำหรับ Image Slide Gallery (`feature/contentmanager-mobile-lightbox`)
+
+Lightbox full-screen สำหรับ image-slide gallery เมื่อเปิดบนมือถือ — tap รูปเพื่อดูแบบเต็มจอ
+
+### วิธีเข้าถึง
+- ไม่มี admin toggle — ทำงานอัตโนมัติบนมือถือ (mobile detect)
+
+### พฤติกรรม / Fields
+| พฤติกรรม | รายละเอียด |
+|---|---|
+| tap รูป | เปิด lightbox full-screen |
+| swipe เพื่อปิด | ปัดลงหรือ swipe เพื่อ dismiss |
+| pinch-to-zoom | ซูมรูปได้ภายใน lightbox |
+
+### Gotchas
+- ใช้ module ใหม่ `mobileLightbox.js`
+- ทำงานเฉพาะ mobile (ตรวจ user-agent / touch device)
+- ไม่กระทบ desktop behavior
+
+---
+
+## Feature: Gallery Lazy Load บนมือถือ (`feature/contentmanager-gallery-lazyload-mobile`)
+
+Gallery slides โหลด on-demand บนมือถือ — ไม่โหลดทุก slide พร้อมกันตั้งแต่ต้น
+
+### วิธีเข้าถึง
+- ไม่มี admin toggle — ทำงานอัตโนมัติบนมือถือ
+
+### พฤติกรรม / Fields
+| พฤติกรรม | รายละเอียด |
+|---|---|
+| Lazy load via IntersectionObserver | slide โหลดเมื่อเข้าใกล้ viewport เท่านั้น |
+| เฉพาะมือถือ | desktop โหลดปกติทั้งหมด |
+
+### Gotchas
+- ลด initial load time บน mobile ได้มาก โดยเฉพาะ gallery ที่มีรูปเยอะ
+- ไม่ต้องตั้งค่าใดๆ ใน admin
+
+---
+
+## Feature: Manual Order Number + Drag-and-Drop Reorder (`feature/contentmanager-manual-ordernumber`)
+
+admin กำหนด order number ของ content item เองด้วย input field หรือ drag-and-drop
+
+### วิธีเข้าถึง
+- **Route:** `?manage=true#!/Contentmanager` → filter ตาม category ก่อน → controls ที่แต่ละ item row
+- **หมายเหตุ:** ต้อง **filter ด้วย category** ก่อนเท่านั้น — Move Position controls และ order number input ถึงจะปรากฏ
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| Order number input | number input per item | กรอกเลขเพื่อกำหนด position ของ item | แสดงเฉพาะเมื่อ filter category แล้ว |
+| Move Position (ย้ายตำแหน่ง) | ลูกศรขึ้น/ลง per row | `sortContentmanager(id,'A'/'B')` | แสดงเฉพาะเมื่อ `showOrderContents` (filter category active) |
+
+### Gotchas
+- filter category ก่อนทุกครั้ง — ถ้าอยู่ใน All / no filter จะไม่เห็น order controls
+- หลัง delete item → list auto-refresh ใน 3 วินาที
+
+---
+
+## Feature: Search Box ใน Category Filter Dropdown (`feature/contentmanager-category-filter-search`)
+
+เพิ่ม search box ใน dropdown "Filter by Category" ของ Content Manager list — พิมพ์เพื่อ filter รายชื่อ category แบบ real-time
+
+### วิธีเข้าถึง
+- **Route:** `?manage=true#!/Contentmanager`
+- **Field:** dropdown "Filter by Category" → มี search box ด้านบน
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| Search box ใน category dropdown | text input | filter รายชื่อ category แบบ real-time ขณะพิมพ์ | bound กับ `catFilterText` |
+| Subcategory | collapse/expand | subcategory ซ่อน (collapse) โดย default, คลิก expand ได้ | — |
+
+### Gotchas
+- เหมาะสำหรับไซต์ที่มี category จำนวนมาก
+- search ไม่ case-sensitive
+
+---
+
+## Feature: Sub-brand / Brand Hierarchy ใน Category Manager (`feature/category-manager`)
+
+รองรับการสร้าง brand hierarchy (parent → child) ใน Category/Brand Manager ของ Shopcart
+
+### วิธีเข้าถึง
+- **Route:** `?manage=true#!/Shopcart/Collection/AddBrand/` หรือ `?manage=true#!/Shopcart/Collection`
+- **Field:** dropdown "เลือก Parent Brand" เมื่อสร้าง/แก้ไข brand
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| Parent Brand (เลือก Parent Brand) | dropdown | เลือก parent เพื่อให้ brand นี้เป็น child brand | เว้นว่าง = top-level brand |
+
+### Gotchas
+- ใช้สำหรับ sub-brand หรือ brand ที่อยู่ภายใต้ brand หลัก
+- ตรวจสอบว่า Category/Brand Manager เปิดใช้งานสำหรับ domain แล้ว
+
+---
+
+## Feature: Purge Word Styles Toggle Per-Component (`feature/contentword-purge-style-toggle`)
+
+toggle per-component เลือกว่าจะ strip inline styles จาก Microsoft Word เมื่อ paste หรือไม่
+
+### วิธีเข้าถึง
+- **Route:** Content Manager → editor → block settings (gear icon)
+- **Field:** "ลบ Style จาก Microsoft Word (Purge Word Styles)" toggle
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| ลบ Style จาก Microsoft Word / Purge Word Styles | toggle per block | เปิด (default) = strip Word inline styles เหลือแค่ bold/italic/underline; ปิด = paste เก็บ styles ทั้งหมด | ค่า default = เปิด (strip) |
+
+### Gotchas
+- เปิดใน block settings (gear) ของแต่ละ block ไม่ใช่ global setting
+- ถ้าต้องการเก็บ formatting จาก Word → ปิด toggle นี้ก่อน paste
+
+---
+
+## Feature: Search Tag Filter — AND ทุก Level (`feature/search-tag-filter-all-levels`)
+
+แก้ Search component tag filter ให้ AND ทุก level ที่เลือกพร้อมกัน (ไม่ใช่แค่ last-selected)
+
+### วิธีเข้าถึง
+- ไม่มี admin toggle — fix พฤติกรรมอัตโนมัติ
+
+### พฤติกรรม / Fields
+| เดิม | ใหม่ |
+|---|---|
+| filter แค่ level เดียว (level ล่าสุดที่เลือก) ทำให้ผลลัพธ์ไม่แม่น | AND ทุก level ที่เลือกพร้อมกัน — แสดงเฉพาะ content ที่มีครบทุก tag ที่ filter |
+
+### Gotchas
+- ผู้ใช้งานไม่ต้องทำอะไร — พฤติกรรมเปลี่ยนอัตโนมัติ
+- อาจทำให้ผลลัพธ์ search น้อยลงถ้า filter หลาย level — นั่นคือ behavior ที่ถูกต้อง
+
+---
+
+## Feature: Bullet Pager สำหรับ Fade Gallery (`feature/image-gallery-fade-bullet`)
+
+toggle แสดง bullet pager (จุดด้านล่าง) สำหรับ Image Gallery รูปแบบ Fade (imgType 7)
+
+### วิธีเข้าถึง
+- **Route:** Layout Manager → Image Gallery component → gear config → เลือก Type = Fade
+- **Field:** "แสดง Bullet Pager (Show Bullet Pager)" checkbox
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| แสดง Bullet Pager / Show Bullet Pager (`Image.bShowBullet`) | checkbox | เปิด = แสดง bullet dot pager ด้านล่าง Fade gallery | เฉพาะ imgType 7 (Fade) เท่านั้น |
+
+### Gotchas
+- ต้องเลือก Type = **Fade** ก่อนถึงจะเห็น field นี้
+- `ng-model: Image.bShowBullet`

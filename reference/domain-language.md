@@ -67,3 +67,65 @@ When a domain has **exactly one active language** (`Config.LangEnable.Length == 
 - **Hardcoded-domain storage whitelists (anti-pattern).** `SlidebarNew/index.js` raises the storage limit for specific `DomainID`s via `byPassThreeGigabytePromotion` (`66c6e9b058af501f001b43ff`), `byPassFiveGigabytePromotion` (`fiveGigDomain` list in `Helper`), and `byPassTenGigabytePromotion` (`673c786f7e28fe20f413e43c`). These per-domain in-code whitelists violate the multi-tenant "no hardcoded-domain logic in shared code" rule and should be config-flag driven.
 - **Expired-date placeholder.** The sidebar's expiry value (`01 ตุลาคม 25563`) is a hardcoded literal and the block is `display:none` — it is not a live domain field.
 - The save button on this page does **not** flip `$rootScope.applyReady` (per the ScriptRequire `applyReady` savebar rule), so any sticky savebar here must omit the `--with-apply` slide-up modifier.
+
+---
+
+## Feature: Single-Language URL Strip (`feature/single-language-url-strip-lang`)
+
+สำหรับ domain ที่มีภาษาเดียว ระบบจะ **strip `/langXX` ออกจาก URL อัตโนมัติ** เพื่อให้ URL สะอาดขึ้น ไม่มี `/langth` หรือ `/langen` ปรากฏใน URL
+
+### วิธีเข้าถึง
+
+- ทำงานอัตโนมัติ — ไม่มี admin toggle
+- เปิดใช้เมื่อ domain มีภาษาเดียวที่ active ใน `?manage=true#!/WebConfig` → Available Languages
+
+### พฤติกรรม
+
+- `ComponentCtrlV2.js` detect single-language domain (`ServerData.bSingleLanguage = true`) → redirect URL ที่มี `/langXX` prefix ออกด้วย `window.location.replace`
+- ใช้ helper `isSingleLanguage()` จาก `language.domain.js`
+- ผล: URL สะอาด เช่น `/products` แทน `/langth/products`
+
+### Gotchas
+
+- หากต้องการ URL แบบมี `/langXX` กลับมา ให้เพิ่มภาษาที่สองใน Available Languages → ระบบจะหยุด strip อัตโนมัติ
+- Sitemap counterpart (strip `/langXX` จาก sitemap.xml) อยู่ใน branch `feature/single-language-sitemap-strip-lang` (PoolNode)
+
+---
+
+## Feature: Default Language Single Source (`feature/language-default-single-source`)
+
+แก้ `DefaultLanguage` ให้ดึงจาก `LanguageActive.DefaultLang` flag แทน hardcode — ทำให้ค่า default language ตรงกับที่ตั้งใน WebConfig เสมอ
+
+### วิธีเข้าถึง
+
+- ทำงานอัตโนมัติ — ไม่มี admin toggle
+- ตั้งค่าได้ที่: `?manage=true#!/WebConfig` → Available Languages → เลือก Default Language
+
+### พฤติกรรม
+
+- ก่อนหน้า: `DefaultLanguage` อาจ hardcode หรือค้างค่าเก่า ทำให้ไม่ตรงกับ WebConfig
+- หลัง fix: `DefaultLanguage` อ่านจาก `LangEnable[].DefaultLang == true` ตรง → สอดคล้องกับ 3-cache behavior ที่บันทึกใน Gotchas ด้านบน
+
+### Gotchas
+
+- fix นี้เกี่ยวข้องกับ "3-cache language-default behavior (known issue)" ที่บันทึกไว้ข้างต้น — ถ้า cache เก่ายังอยู่อาจต้อง clear Redis/Application scope ด้วยมือ
+
+---
+
+## Feature: Language Bar แสดงเฉพาะภาษา Active (`feature/languagebar-default-in-active`)
+
+แก้ bug `#languagebar` บนหน้าเว็บแสดงภาษาที่ inactive ใน dropdown — ตอนนี้แสดงเฉพาะภาษาที่ active จริงใน WebConfig เท่านั้น
+
+### วิธีเข้าถึง
+
+- ทำงานอัตโนมัติ — ไม่มี admin toggle
+- ตั้งค่าภาษาที่ active ได้ที่: `?manage=true#!/WebConfig` → Available Languages
+
+### พฤติกรรม
+
+- ก่อนหน้า: `#languagebar` dropdown อาจแสดงภาษาที่ untick ไปแล้ว ทำให้ผู้ใช้เห็นตัวเลือกที่ไม่ควรแสดง
+- หลัง fix: language bar กรองเฉพาะภาษาที่มี `LangEnable[].bActive == true` (หรือ equivalent flag) ก่อน render
+
+### Gotchas
+
+- ถ้า language bar ยังแสดงภาษาที่ inactive อยู่ ให้ลอง Apply config และ clear cache ก่อน — อาจเป็น stale cache ไม่ใช่ bug

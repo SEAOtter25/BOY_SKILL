@@ -86,3 +86,30 @@ There are no editable/save fields — this is a read-only reporting screen. The 
 - A 4th tab `setting4` ("Google Ads" / Advert summary, `bindStatHistory`/`sendAds`) exists in markup but its tab trigger is commented out in both views — it is not reachable from the UI.
 - `#!/Dashboard` is effectively dead UI: it renders an empty styled card and an empty controller. There is no sidebar link to it; the practical landing page is CMS Home (`index.cshtml`). Treat "the dashboard" as the CMS Home landing with the embedded stats card, not the `/Dashboard` route.
 - Thai labels mix two sources: the sidebar/home-card labels come from `ScriptRequire/domains/language/menu-by-language/menu-setting-gerenal.js` (`settingGeneralMenu`) and `menuSlideBarNameByLanguage.js` (`webStatistics`); the full-page labels are inline Razor `isThaiLanguage ? ... : ...` ternaries in `ViewStatic.cshtml`. Note the English label for the home card's tab 1 ("Traffic Acquisition") differs from the full-page tab 1 ("Website Visit Statistics") even though both show the same data.
+
+---
+
+## Feature: Sales Dashboard (`feature/mainbackend-sales-dashboard`)
+
+เพิ่ม **Sales Overview card** ใน Main Backend dashboard แสดงยอดขายรวมและจำนวน order — ช่วยให้ admin เห็นภาพรวมยอดขายได้ทันทีจาก dashboard โดยไม่ต้องเข้า Shopcart
+
+### วิธีเข้าถึง
+
+- **Route (Shopcart dashboard):** `https://demo110.itopplus.com/?manage=true#!/Shopcart`
+- **Route (Main dashboard):** `https://demo110.itopplus.com/?manage=true` (หน้า main backend)
+
+### พฤติกรรม / Fields
+
+| Card / Field | รายละเอียด |
+|---|---|
+| ยอดขายรวม (Total Revenue) | ยอดเงินรวมจาก order ที่สำเร็จในช่วงที่เลือก |
+| จำนวนคำสั่งซื้อ (Order Count) | จำนวน order ทั้งหมดในช่วงที่เลือก |
+| Filter: This month / Last month | เลือกช่วงเวลาที่ต้องการดูยอดขาย |
+
+- Controller: `SalesDashboard/Controller.js`
+- Backend: `ShopcartController.cs` → `SalesSummary.cs`
+
+### Gotchas
+
+- Card นี้แสดงเฉพาะ domain ที่เปิดใช้งาน Shopcart — domain ที่ไม่มีร้านค้าอาจไม่เห็น card นี้
+- ข้อมูลยอดขายคำนวณจาก order ที่มีสถานะสำเร็จเท่านั้น (ไม่นับ order ที่ยกเลิก)

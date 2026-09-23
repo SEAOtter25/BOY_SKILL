@@ -188,3 +188,32 @@ The company-info fields in the member register popup (`Views/Component/MemberCtr
 - The **Require Registration Approval** toggle reads `bAllowRegister` (global) and writes the entire Config object — it is a domain config flag, applied per-domain.
 - `MemberController` is shared between the public-facing member login/register component and this admin screen; the admin CRUD only runs after `memberinit()` (called from `ViewMember.cshtml` ng-init). Editing the controller can affect both surfaces.
 - National ID field uses markup `type="email"` (likely a copy-paste artifact) — not a validation rule you can rely on.
+
+---
+
+## Feature: Member Order History (`feature/member-order-history`)
+
+เพิ่ม tab **"Order History"** ในหน้า Member admin สำหรับดูประวัติคำสั่งซื้อของ member แต่ละคน — admin สามารถดู order ของ member ได้โดยตรงจากหน้า Member Manager โดยไม่ต้องไป Shopcart
+
+### วิธีเข้าถึง
+
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Member` → เลือก member ที่ต้องการ → คลิก tab **Order History**
+
+### พฤติกรรม / Fields
+
+| Column | รายละเอียด |
+|---|---|
+| วันที่ (Date) | วันที่สั่งซื้อ |
+| Order ID | รหัสคำสั่งซื้อ |
+| ยอดเงิน (Amount) | ยอดรวมของ order |
+| สถานะ (Status) | สถานะปัจจุบันของ order |
+
+- แสดงผลแบบ paginated list เฉพาะ order ของ member นั้น
+- คลิก order → เปิด order detail
+- View: `MemberOrderHistory.cshtml`
+- Controller: `Component/Member/Controller.js`
+
+### Gotchas
+
+- Tab นี้แสดงเฉพาะ domain ที่เปิดใช้งาน Shopcart — ถ้า domain ไม่มีร้านค้า tab อาจไม่ปรากฏ
+- ต้องเปิด member record ก่อน (คลิก Edit บน row) จึงจะเห็น tab Order History

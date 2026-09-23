@@ -1,4 +1,4 @@
-# Store / Shopcart admin configuration (จัดการร้านค้า)
+﻿# Store / Shopcart admin configuration (จัดการร้านค้า)
 
 ## What it does
 The e-commerce store admin ("Manage Shop") is where a tenant configures everything about its online shop: shop identity/address, general behaviour (currency, tax, checkout, members, stock), payment accounts, shipping providers, notification messages, and coupons — plus the product catalog (products, categories, brands, tags, filters, attributes) and order management. It is a large area split across a settings hub (six setting screens sharing one top tab bar) and a product/order back end.
@@ -233,7 +233,7 @@ The branch number is also displayed after the company name in all checkout previ
 
 ---
 
-## Feature: ตั้งค่า Attribute Selector และ Auto-select อิสระต่อกัน (feature/shopsetting-attr-display-autoselect)
+## Feature: ตั้งค่า Attribute Selector และ Auto-select อิสระต่อกัน (`feature/shopsetting-attr-display-autoselect`)
 
 ก่อนหน้านี้ setting "Show All Attributes" และ "Auto-Select First Attribute" เป็น mutually exclusive (เปิดอันหนึ่งอีกอันจะซ่อน) บัดนี้ทั้งสอง toggle เป็นอิสระต่อกัน — admin สามารถเปิดทั้งคู่ ปิดทั้งคู่ หรือเปิดแค่อันใดอันหนึ่งก็ได้ นอกจากนี้ยังเพิ่มการ persist การเลือก attribute/size ลง `sessionStorage` เพื่อ restore เมื่อ reload
 
@@ -274,12 +274,11 @@ The branch number is also displayed after the company name in all checkout previ
 
 ---
 
-## Feature: Social Order Button + Hide Cart แบบ Per-Product (feature/shopcart-per-product-social-order-and-hide-cart)
+## Feature: Social Order Button + Hide Cart แบบ Per-Product (`feature/shopcart-per-product-social-order-and-hide-cart`)
 
 ต่อยอดจาก Social Order Button (batch 3) เพิ่มการควบคุมระดับ per-product 3 อย่าง: (1) Show/Hide ปุ่ม Social Order สำหรับสินค้านี้ (2) Hide/Show ปุ่ม Add to Cart สำหรับสินค้านี้ (3) เปิด/ปิดทีละ channel สำหรับสินค้านี้ และเพิ่ม mode ใหม่ `perproductfull` ใน Shopcart Setting
 
 ### วิธีเข้าถึง
-
 - **ตั้ง mode:** `https://demo110.itopplus.com/?manage=true#!/ShopSetting` → Social Order Button section → Mode radio
 - **Per-product:** `https://demo110.itopplus.com/?manage=true#!/AddProductV2` → เปิด/แก้ไขสินค้า → scroll ลงถึงส่วน "ตั้งค่าปุ่มสั่งซื้อผ่านโซเชียล (เฉพาะสินค้านี้)"
 
@@ -322,3 +321,471 @@ public List<bool?> SocialOrderChannelEnabled { get; set; }
 - **ค่า null = แสดงตามปกติ** — สินค้าเก่าที่ไม่มี field นี้จะ render เหมือนเดิม ไม่ต้อง migrate
 - **Warning ใน admin** จะแจ้งเตือนเมื่อ HideCartButton=true + SocialOrderVisible=false พร้อมกัน (ลูกค้าจะสั่งซื้อไม่ได้เลย)
 - **`SocialOrderChannelEnabled` checkbox** ใช้ `ng-init` default-true บน `ng-repeat` iteration แรก — idempotent เพราะ read ค่าตัวเองก่อน flip
+---
+
+## Feature: อัปเดต 2C2P เป็น API v4.3 (`feature/shopcart-2c2p-v43-api`)
+
+อัปเดต integration ของ payment gateway **2C2P** จาก API เวอร์ชันเก่าเป็น **v4.3** และเพิ่มการยืนยัน postback ผ่าน Order Inquiry API ก่อนส่ง email ยืนยันคำสั่งซื้อ เพื่อป้องกัน fake/replay postback
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart/PaymentSetting` → card **2C2P**
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| Merchant ID | Text input | รหัสร้านค้าที่ได้จาก 2C2P | ต้องตรงกับที่จดทะเบียนใน 2C2P dashboard |
+| Secret Key | Text input | ใช้ sign/verify payload v4.3 | Key เวอร์ชันเก่าอาจใช้ไม่ได้ ต้อง regenerate จาก 2C2P |
+| Postback URL | Text input | URL ที่ 2C2P จะ POST แจ้งผลชำระ | ต้องเป็น HTTPS และเข้าถึงได้จาก internet |
+| Return URL | Text input | URL redirect หลังลูกค้าชำระ | — |
+
+### Gotchas
+- **ไม่มี toggle ใหม่** — เป็นการ update gateway ที่มีอยู่แล้ว; admin ที่ใช้ 2C2P อยู่แล้วจะได้รับ behavior ใหม่โดยอัตโนมัติหลัง deploy
+- ระบบจะเรียก **Order Inquiry API** ก่อนส่ง confirmation email ทุกครั้ง — ถ้า 2C2P ยืนยันว่า order ยังไม่ชำระจริง email จะไม่ถูกส่ง
+- ถ้าค่า Secret Key ผิดหรือเป็นเวอร์ชันเก่า postback จะ verify ไม่ผ่านและ order จะค้างที่สถานะ Unpaid
+
+---
+
+## Feature: New Attribute Mode Toggle (`feature/shopcart-new-attribute-mode-toggle`)
+
+เพิ่ม toggle **"New Attribute Mode"** ใน General Setting เพื่อสลับ UI ของการเลือก attribute บนหน้าสินค้า — จาก dropdown แบบเดิมเป็น **image cards** แบบใหม่
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart/GeneralSetting` → section **Product Status (สถานะสินค้า)**
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | ng-model | Effect | Gotchas |
+|---|---|---|---|---|
+| New Attribute Mode (โหมดแอตทริบิวต์ใหม่) | radio ON/OFF | `Setting.bNewModeAttribute` | ON = attribute แสดงเป็น image card แทน dropdown | feature อื่นที่เกี่ยวกับ attribute ใหม่ (hide single, sort numeric, image upload) ต้องเปิด mode นี้ก่อนถึงจะมีผล |
+
+### Gotchas
+- การเปิด/ปิด mode นี้กระทบ UI ทุกสินค้าในร้าน ทันทีที่ Save + Apply
+- ถ้าเปิดแล้วยังไม่ได้ upload รูปให้ attribute values card จะแสดงเป็น placeholder
+
+---
+
+## Feature: ซ่อน Attribute ที่มี Option เดียว (`feature/shopcart-hide-single-attribute`)
+
+toggle ซ่อน attribute ที่มีตัวเลือก (option) เพียงตัวเดียว — เนื่องจากระบบ auto-select ให้อยู่แล้ว ลูกค้าไม่ต้องเห็นหรือเลือก
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart/GeneralSetting`
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | ng-model | Effect | Gotchas |
+|---|---|---|---|---|
+| ซ่อน Attribute ที่มี Option เดียว | radio ON/OFF | `Setting.bHideSingleAttr` | ON = attribute ที่มีแค่ 1 option จะถูกซ่อนบนหน้าสินค้า (ระบบ auto-select ให้) | **ต้องเปิด New Attribute Mode ก่อน** จึงจะมีผล |
+
+### Gotchas
+- ถ้าปิด New Attribute Mode (`bNewModeAttribute = OFF`) field นี้จะไม่มีผลแม้จะเปิดไว้
+- ตรวจสอบว่า stock ของ option เดียวนั้นยังมีอยู่ก่อน ไม่งั้นสินค้าอาจดูเหมือน "ไม่มี attribute" แต่สั่งไม่ได้
+
+---
+
+## Feature: เรียง Attribute ตัวเลขจากน้อยไปมาก (`feature/shopcart-sort-numeric-attribute`)
+
+per-domain toggle สำหรับเรียง option ของ attribute ที่เป็นตัวเลข (เช่น ไซส์ 38, 40, 42) จากน้อยไปมากอัตโนมัติ
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart/GeneralSetting`
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | ng-model | Effect | Gotchas |
+|---|---|---|---|---|
+| เรียง Attribute ตัวเลขจากน้อยไปมาก | radio ON/OFF | `Setting.bSortNumericAttr` | ON = ระบบตรวจว่า values ทุกตัวใน attribute นั้น parse เป็น number ได้หรือไม่ ถ้าใช่ → sort ascending | ถ้า values ผสมกัน (เช่น "38", "S", "M") จะไม่ sort — ปล่อยไว้ตามลำดับเดิม |
+
+### Gotchas
+- Sort ทำ runtime บน frontend ไม่เปลี่ยนลำดับที่เก็บใน DB
+- ถ้าต้องการ sort แบบ custom (ไม่ใช่ numeric ascending) ให้ลากเรียงลำดับด้วย Attribute Value Reorder แทน
+
+---
+
+## Feature: Attribute Image Upload & Numeric Input Sanitize ใน New Mode (`feature/shopcart-attr-newmode-image-and-number-input`)
+
+ใน **New Attribute Mode** admin สามารถ upload/ลบรูปสำหรับแต่ละ attribute value ได้โดยตรง + ระบบ sanitize ตัวเลขที่มี comma หรือ space ก่อน save อัตโนมัติ
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart/Attribute` → เลือก attribute → จัดการ values
+
+### พฤติกรรม / Fields
+| องค์ประกอบ | Type | Effect | Gotchas |
+|---|---|---|---|
+| Image upload ต่อ attribute value | File picker / upload | อัปโหลดรูป thumbnail สำหรับ value นั้น (แสดงบนหน้าสินค้าเป็น image card) | ต้องเปิด New Attribute Mode ก่อน |
+| ปุ่มลบรูป | Button | ลบรูปของ value นั้น โดยไม่ต้อง re-upload รูปว่าง | — |
+| Numeric input sanitize | อัตโนมัติ | value ที่มี comma (`,`) หรือ space (` `) จะถูก strip ก่อน save | เช่น `"1,000"` → `"1000"`, `"42 "` → `"42"` |
+
+### Gotchas
+- รูปที่ upload ผูกกับ value นั้น — ถ้าเปลี่ยนชื่อ value รูปยังคงอยู่ แต่ถ้าลบ value รูปจะถูกลบด้วย
+- Sanitize numeric ทำก่อน save เสมอ — ถ้า admin ใส่ comma เพื่อ format จะหายไปทันที
+
+---
+
+## Feature: ปุ่มลบรูป Attribute (`feature/shopcart-attr-image-delete`)
+
+เพิ่มปุ่ม **"ลบรูป"** ใน Attribute Manager สำหรับลบรูปที่ผูกกับ attribute value โดยเฉพาะ — ไม่ต้อง re-upload ไฟล์ว่างเพื่อลบรูปเหมือนเดิม
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart/Attribute`
+
+### พฤติกรรม / Fields
+| องค์ประกอบ | Effect | Gotchas |
+|---|---|---|
+| ปุ่มลบรูป (delete image button) ต่อ attribute value | ลบ image URL ออกจาก value นั้น ทันที | การลบรูปไม่ได้ลบ value ออกจาก attribute แค่เอารูปออก |
+
+### Gotchas
+- Feature นี้แยกออกมาจาก `feature/shopcart-attr-newmode-image-and-number-input` เพื่อให้ใช้ได้แม้ไม่ได้เปิด New Attribute Mode ครบ
+
+---
+
+## Feature: Drag-and-Drop เรียง Attribute Values ต่อสินค้า (`feature/shopcart-attribute-value-reorder-per-product`)
+
+admin ลากเรียงลำดับ attribute values ได้ใน **หน้า Edit สินค้า** แบบ per-product — ลำดับที่ลากจะถูก save เฉพาะสินค้านั้น แตกต่างจาก global order ใน Attribute Manager
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart/Product/AddProductsV2/<productId>` → section **Attribute**
+
+### พฤติกรรม / Fields
+| องค์ประกอบ | Effect | Gotchas |
+|---|---|---|
+| Drag handle บนแต่ละ attribute value row | ลากขึ้น/ลงเพื่อเรียงลำดับ | ลำดับนี้ใช้สำหรับสินค้านี้เท่านั้น — global order ใน `#!/Shopcart/Attribute` ไม่เปลี่ยน |
+| Save สินค้า | บันทึก per-product order | ถ้าไม่ Save order ที่ลากไว้จะหาย |
+
+### Gotchas
+- ถ้าเพิ่ม attribute value ใหม่ใน global Attribute Manager value ใหม่จะอยู่ท้ายสุดในทุกสินค้าที่ใช้ attribute นั้น
+- Per-product order ไม่กระทบหน้า Attribute Manager
+
+---
+
+## Feature: Toggle Active/Inactive สินค้าจาก Product List (`feature/shopcart-product-status-toggle`)
+
+admin สลับสถานะ **active ↔ inactive** ของสินค้าได้โดยตรงจากหน้ารายการสินค้า ไม่ต้องเข้าหน้า edit ทีละชิ้น
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart/Product`
+
+### พฤติกรรม / Fields
+| องค์ประกอบ | Effect | Gotchas |
+|---|---|---|
+| Toggle badge สถานะ (แต่ละแถวสินค้า) | คลิกเพื่อเปลี่ยน active ↔ inactive ทันที | เปลี่ยนแบบ optimistic update — ถ้า API ล้มเหลว badge จะ revert |
+
+### Gotchas
+- ไม่ต้องกด Save หรือ Apply เพิ่มเติม — toggle บันทึกและมีผลทันที
+- ถ้าสินค้ามีสถานะพิเศษ (เช่น หมด stock ทุก variant) badge อาจไม่ตรงกับ "เหตุผล" ที่ซ่อนสินค้า
+
+---
+
+## Feature: Shopcart "Tabs by Tag" บังคับเลือก Tag (`feature/shopcart-tabs-by-tag-require-tag`)
+
+config Shopcart component แบบ **"Tabs by tag"** มี validation บังคับให้เลือก tag ก่อน save และ auto-select tag แรกถ้าไม่มีการเลือกไว้
+
+### วิธีเข้าถึง
+- **Route:** Layout Manager → เลือก/เพิ่ม Shopcart component → gear icon config → เลือก display mode "Tabs by tag"
+
+### พฤติกรรม / Fields
+| องค์ประกอบ | Effect | Gotchas |
+|---|---|---|
+| Tag selector ใน component config | ต้องเลือก tag อย่างน้อย 1 tag | ถ้าไม่เลือก ระบบป้องกัน save config พร้อมแสดง warning |
+| Auto-select tag แรก | ถ้า config ถูก load แล้วไม่มี tag ที่เลือก ระบบ auto-pick tag แรกใน list | เพื่อป้องกัน component แสดงผิดพลาดบน frontend |
+
+### Gotchas
+- ถ้าลบ tag ที่ถูก select ออกจากระบบ component อาจ fallback เป็น tag อื่นอัตโนมัติ
+- Apply หลัง save เสมอถ้าต้องการให้ผลมีผลบนหน้าจริง
+
+---
+
+## Feature: Related Products Type ใหม่ = Same Tag (`feature/shopcart-related-same-tag-type`)
+
+เพิ่ม **Related Product type 4 (same tag)** ใน Shopcart component config — แสดงสินค้าที่มี tag เดียวกันเป็น related products
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart` → เลือก component → gear config icon → Related Products section
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| Related Product Mode | Radio / select | เลือก type 4 = "Same Tag" | สินค้าต้องมี tag ที่ตรงกัน ถ้าไม่มีจะไม่แสดง related |
+
+### Mode ทั้งหมด
+| Mode | ความหมาย |
+|---|---|
+| 1 | Same category |
+| 2 | Same brand |
+| 3 | Manual select |
+| **4** | **Same tag (ใหม่)** |
+| 5 | Specific select (server-side search) |
+
+### Gotchas
+- Tag matching ใช้ exact match — ถ้า tag เขียนต่างกัน (uppercase/lowercase) อาจไม่ match
+
+---
+
+## Feature: Related Products Mode 5 — Specific Select (Server-side Search) (`feature/shopcart-related-mode-specific`)
+
+เพิ่ม **Related Product mode 5** ให้ admin เลือกสินค้า specific สำหรับ related โดย search แบบ server-side — ไม่ต้อง load รายการสินค้าทั้งหมดก่อน
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart/Product/AddProductsV2/<productId>` → section **Related Products** → เลือก mode 5
+
+### พฤติกรรม / Fields
+| องค์ประกอบ | Effect | Gotchas |
+|---|---|---|
+| Search box (ค้นหาสินค้า) | พิมพ์ชื่อ/keyword → ระบบ query server แล้วแสดงผลลัพธ์ | ต้องพิมพ์อย่างน้อย 2 ตัวอักษรก่อน search จะ trigger |
+| เลือกสินค้าจากผลลัพธ์ | เพิ่มสินค้าที่เลือกเข้า related list ของสินค้านี้ | — |
+
+### Gotchas
+- Mode 5 เก็บ list ของ ProductID ไว้ per-product — ถ้าสินค้าใน list ถูกลบออกจากระบบ จะไม่แสดงบน frontend (ไม่ error แค่หาย)
+- Server-side search ค้นได้เฉพาะสินค้า active เท่านั้น
+
+---
+
+## Feature: Max Items สำหรับ Related Products (`feature/multiple-tag-items`)
+
+เพิ่ม field **"max items"** ใน Shopcart component config สำหรับจำกัดจำนวนสินค้าที่แสดงใน Related Products section — รองรับทุก mode
+
+### วิธีเข้าถึง
+- **Route:** Layout Manager → Shopcart component → gear config → Related Products section
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | ng-model | Default | Effect | Gotchas |
+|---|---|---|---|---|---|
+| Max Items (จำนวนสินค้าสูงสุด) | Number input | `shopConfig.nRelatedMaxItems` | `0` (ไม่จำกัด) | จำกัดจำนวน related products ที่แสดง | ค่า 0 หมายถึงไม่จำกัด — แสดงทั้งหมดที่หาได้ |
+
+### Gotchas
+- ใช้ร่วมกับ pagination ได้ — ถ้าเปิด pagination ด้วย max items จะถูก apply ก่อนแล้วค่อย paginate
+- เปลี่ยนค่านี้แล้ว Apply เสมอถ้าต้องการให้มีผลบนหน้าจริง
+
+---
+
+## Feature: Pagination สำหรับ Related Products (`feature/product-related-pagination`)
+
+เพิ่ม **pagination** สำหรับ Related Products section บนหน้าสินค้า (frontend) — admin config เปิด/ปิด + กำหนด items per page ใน Shopcart component
+
+### วิธีเข้าถึง
+- **Route:** Layout Manager → Shopcart component → gear config → Related Products section
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| เปิด Pagination | radio ON/OFF | แสดง pagination control ใต้ Related Products | ต้องมีสินค้า related มากกว่า items per page จึงจะแสดง pagination |
+| Items per page (จำนวนต่อหน้า) | Number input | จำนวนสินค้าต่อ 1 หน้า | ค่าแนะนำ 4–8 ให้พอดีกับ grid layout |
+
+### Gotchas
+- Template ใหม่คือ `_ShopcartRelatedProductsPaged.cshtml` — ต้องแน่ใจว่า theme ที่ใช้ render template นี้ได้
+- Pagination เป็น client-side (จาก data ที่ load มาแล้ว) ไม่ใช่ server-side — ถ้า related products มีจำนวนมากมาก ควรตั้ง Max Items ด้วย
+
+---
+
+## Feature: Level-3 Category Tree ใน Deep Search (`feature/shopcart-deep-level-l2-l3-tree`)
+
+เพิ่ม **Level-3 (L3) tree** รองรับ Spare Part Explorer / Deep Search — admin config category tree ได้ถึง 3 ระดับ (L1 → L2 → L3)
+
+### วิธีเข้าถึง
+- **Route (config):** `https://demo110.itopplus.com/?manage=true#!/Shopcart/Collection` → category tree config
+- **ใช้งาน:** หน้าสินค้าที่มี deep search filter (Spare Part Explorer component)
+
+### พฤติกรรม / Fields
+| องค์ประกอบ | Effect | Gotchas |
+|---|---|---|
+| L3 Category (ระดับ 3) | เพิ่ม sub-category ใต้ L2 ได้ | ต้องสร้าง L1 → L2 ก่อนจึงจะเพิ่ม L3 ได้ |
+| Deep Search filter แสดง L3 | เมื่อ user เลือก L2 จะแสดง L3 ถัดไป | — |
+
+### Gotchas
+- ถ้า L2 ไม่มี L3 children — Deep Search จะแสดง product list ทันทีหลังเลือก L2 (ไม่แสดง L3 panel ว่าง)
+- Category tree ลึก 3 ระดับอาจซับซ้อนสำหรับ user — ควรจัด naming ให้ชัดเจน
+
+---
+
+## Feature: Deep Search URL State (L1/L2/L3 + keyword ใน URL) (`feature/shopcart-deepsearch-url-state`)
+
+Deep search state — การเลือก L1/L2/L3 + keyword — ถูก **บันทึกลงใน URL hash และ cookie** โดยอัตโนมัติ เมื่อ user กลับมาหน้าเดิม state จะคืนมาเอง
+
+### วิธีเข้าถึง
+- ทำงานอัตโนมัติในทุกหน้าที่มี Deep Search / Spare Part Explorer component — ไม่ต้อง config ใดๆ
+
+### พฤติกรรม
+| พฤติกรรม | รายละเอียด |
+|---|---|
+| บันทึก URL hash | เมื่อ user เลือก L1/L2/L3 หรือพิมพ์ keyword URL จะอัปเดต hash เพื่อให้ share/bookmark ได้ |
+| บันทึก cookie | state ถูก save ลง cookie เพิ่มเติม — restore ได้แม้ reload โดยไม่มี hash ใน URL |
+| Restore on load | เมื่อเปิดหน้า component อ่าน hash / cookie แล้วตั้งค่า filter ตาม state ที่บันทึกไว้ |
+
+### Gotchas
+- **ไม่มี admin toggle** — ทำงานอัตโนมัติ; ถ้าต้องการปิดต้องแก้ code
+- Cookie มี expiry — ถ้าหมดอายุ state จะไม่ restore (แต่ URL hash ยังใช้ได้)
+
+---
+
+## Feature: ประวัติคำสั่งซื้อของลูกค้าใน Order Detail Sidebar (`feature/shopcart-customer-order-history`)
+
+ขณะ admin เปิด order detail จะมี **sidebar ด้านขวา** แสดงประวัติคำสั่งซื้อทั้งหมดของลูกค้าคนนั้น ไม่ต้องออกไปค้นหาต่างหาก
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart/Order` → คลิก order ใดก็ได้ → sidebar ด้านขวาแสดงประวัติ
+
+### พฤติกรรม / Fields
+| องค์ประกอบ | Effect | Gotchas |
+|---|---|---|
+| Order History sidebar | แสดงรายการ order ทั้งหมดของลูกค้าคนนั้น (เรียงตามวันที่ล่าสุด) | ต้องมีข้อมูลอีเมล/ชื่อลูกค้าในระบบจึงจะ match ได้ |
+| คลิก order ใน sidebar | เปิด detail ของ order นั้นได้เลย | — |
+
+### Gotchas
+- ถ้าลูกค้าสั่งซื้อในฐานะ guest (ไม่ได้ login) การ match อาจใช้ email ของ order นั้น — ถ้าเคยใช้ email ต่างกันจะไม่รวมกัน
+
+---
+
+## Feature: Order History Tab ในหน้า Member Admin (`feature/member-order-history`)
+
+เพิ่ม tab **"Order History"** ในหน้า Member Management สำหรับดูประวัติคำสั่งซื้อของ member แต่ละคน
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Member` → เลือก/เปิด member → tab **Order History**
+
+### พฤติกรรม / Fields
+| องค์ประกอบ | Effect | Gotchas |
+|---|---|---|
+| Tab "Order History" | แสดงรายการ order ทั้งหมดของ member คนนั้น | ถ้า member ไม่เคยสั่งซื้อ tab จะว่างเปล่า (ไม่ error) |
+| คลิก order row | เปิด order detail ได้เลย | — |
+
+### Gotchas
+- ข้อมูลดึงจากการ match `MemberID` — ถ้า order ถูกสร้างโดย guest email เดียวกันแต่ไม่ได้ link กับ member จะไม่แสดงที่นี่
+
+---
+
+## Feature: คลิก Row ใน Order List เพื่อเปิด Detail (`feature/order-row-click-opens-detail`)
+
+ปรับ UX ให้สามารถ **คลิกที่แถว (row) ใดก็ได้** ในหน้า Order List เพื่อเปิด order detail ได้เลย ไม่ต้องหาปุ่มเฉพาะ
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart/Order`
+
+### พฤติกรรม
+| พฤติกรรม | รายละเอียด |
+|---|---|
+| คลิก row | เปิด order detail ทันที เหมือนคลิกปุ่ม "ดูรายละเอียด" |
+| ปุ่มเฉพาะ (ถ้ามี) | ยังคงทำงานได้ปกติ — row-click เป็นการเพิ่มเติม ไม่ได้แทนที่ |
+
+### Gotchas
+- ระวัง click propagation — ถ้า row มี toggle หรือ checkbox อื่น การคลิกที่ element เหล่านั้นยังทำงาน action ของตัวเองก่อน (stopPropagation)
+
+---
+
+## Feature: Bell Notification ใน Admin สำหรับ Omise Payment (`feature/omise-admin-bell-notification`)
+
+เพิ่ม **bell notification** ใน admin header เมื่อมีการชำระเงินผ่าน Omise สำเร็จหรือล้มเหลว — แสดงเป็น badge จำนวน + toast notification
+
+### วิธีเข้าถึง
+- ทำงานอัตโนมัติเมื่อเปิดใช้งาน Omise gateway (`?manage=true#!/Shopcart/PaymentSetting` → เปิด Omise card)
+- Bell icon อยู่ใน admin header bar
+
+### พฤติกรรม / Fields
+| องค์ประกอบ | Effect | Gotchas |
+|---|---|---|
+| Bell badge (จำนวนการแจ้งเตือน) | แสดงจำนวน Omise events ที่ยังไม่ได้อ่าน | หายเมื่อ admin คลิกอ่านแล้ว |
+| Toast notification | popup แจ้งเมื่อมี Omise payment event ใหม่ | แสดงชั่วคราวแล้วหาย |
+
+### Gotchas
+- **ไม่มี toggle** — ทำงานอัตโนมัติเมื่อ Omise enabled; ถ้าไม่ต้องการต้องปิด Omise gateway
+- Notification ใช้ polling หรือ webhook ขึ้นกับ infrastructure — ถ้าชำระแล้วไม่มีแจ้งให้ตรวจสอบ Omise webhook config
+
+---
+
+## Feature: Embed รูป Payment Slip ใน Email Body (`feature/paymentform-email-slip-inline`)
+
+แนบรูป payment slip โดย **embed ตรงใน email body** (inline image) แทนที่จะส่งเป็น href link ที่อาจหมดอายุหรือถูก block โดย email client
+
+### วิธีเข้าถึง
+- ไม่มี admin toggle — ทำงานอัตโนมัติสำหรับทุก order confirmation email ที่มี slip
+
+### พฤติกรรม
+| พฤติกรรม | รายละเอียด |
+|---|---|
+| Slip ใน email | แสดงรูปเลย ไม่ต้องคลิก link เพื่อเปิด | ขนาดไฟล์ใน email เพิ่มขึ้นตามขนาด slip |
+
+### Gotchas
+- Email ที่มี inline image ขนาดใหญ่อาจถูก Gmail/Outlook ย่อ preview หรือ warn ว่า "รูปถูกบล็อก" (ขึ้นกับ email client settings ของลูกค้า)
+- ถ้า slip ไม่ได้ upload ไว้ในระบบ (เช่น ลูกค้าส่งเป็น link ภายนอก) อาจไม่สามารถ embed ได้
+
+---
+
+## Feature: ส่ง Slip ทุกรูปไปยัง Admin Inbox (`feature/paymentform-multi-slip-admin-preview`)
+
+ปรับให้ email ยืนยันที่ส่งให้ admin แนบ **slip ทุกรูปที่ลูกค้าอัปโหลด** (เดิมส่งแค่รูปแรก)
+
+### วิธีเข้าถึง
+- ไม่มี admin toggle — ทำงานอัตโนมัติสำหรับทุก order ที่ลูกค้า upload slip หลายรูป
+
+### พฤติกรรม
+| พฤติกรรม | รายละเอียด |
+|---|---|
+| Admin email | ได้รับ slip ครบทุกรูปที่ลูกค้าส่ง ไม่ใช่แค่รูปแรก | ขนาด email เพิ่มขึ้นตามจำนวนรูป |
+
+### Gotchas
+- ถ้าลูกค้า upload slip จำนวนมาก email อาจมีขนาดเกิน limit ของ mail server บางราย
+- ไม่มีผลกับ customer confirmation email — ลูกค้ายังได้รับ email เหมือนเดิม
+
+---
+
+## Feature: Sales Overview Dashboard (`feature/mainbackend-sales-dashboard`)
+
+เพิ่ม **Sales Overview card** ใน Main Backend dashboard สำหรับดูยอดขายและจำนวน order แบบ quick overview
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Shopcart` หรือ `https://demo110.itopplus.com/?manage=true` (home dashboard)
+
+### พฤติกรรม / Fields
+| Field (EN / TH) | Type | Effect | Gotchas |
+|---|---|---|---|
+| ยอดขายรวม (Total Revenue) | Display card | แสดงยอดรวมตาม date range ที่เลือก | ตัวเลขอ้างอิงจาก order ที่ "ชำระแล้ว" เท่านั้น |
+| จำนวน Order (Order Count) | Display card | แสดงจำนวน order ตาม date range | — |
+| This month / Last month | Filter toggle | เปลี่ยน date range สำหรับ card ทั้งสอง | ค่า default = This month |
+| Date range picker | Date picker | กำหนด date range เอง | — |
+
+### Gotchas
+- Dashboard card อ่านข้อมูลแบบ near-realtime (ไม่ใช่ cached report) — อาจช้าเล็กน้อยถ้ามี order จำนวนมาก
+- Currency ที่แสดงตาม config ร้านค้า — ถ้ามีหลาย currency อาจต้อง normalize ก่อน compare
+
+---
+
+## Feature: Shop Settings Header เป็น Pill Tabs (`feature/shopcart-settings-header-pills`)
+
+redesign header ของ shop settings **ทุกหน้า** จาก tab bar แบบเดิมเป็น **pill tabs** style ใหม่ — เป็น UX/UI improvement ไม่มีอะไรต้อง config
+
+### วิธีเข้าถึง
+- ทำงานอัตโนมัติในทุก shop settings route (`#!/Shopcart/DetailShop`, `#!/Shopcart/GeneralSetting`, ฯลฯ)
+
+### Gotchas
+- ถ้า theme มี CSS override สำหรับ shop settings header อาจต้องตรวจสอบว่า pill tabs ยังแสดงผลถูกต้อง
+- ไม่มีผลต่อ functionality — เป็นการ restyle เท่านั้น
+
+---
+
+## Feature: Shopcart Component Config แบ่งเป็น 2 Tabs (`feature/shopcart-manager-2tab-redesign`)
+
+redesign **Shopcart component config dialog** (gear icon ใน Layout Manager) แบ่งออกเป็น **2 tabs**:
+- **Display** — การแสดงผล layout, จำนวนคอลัมน์, style
+- **Related/Filter** — Related Products config, filter settings
+
+### วิธีเข้าถึง
+- **Route:** Layout Manager → เลือก Shopcart component → คลิก gear (⚙) config icon → dialog ปรากฏเป็น 2 tabs
+
+### Gotchas
+- Settings เดิมทั้งหมดยังอยู่ครบ แค่ถูกแบ่งไปอยู่ใน tab ที่เหมาะสม
+- ถ้าเคย save config แล้ว — ไม่ต้อง re-save; การ redesign ไม่กระทบ saved config
+
+---
+
+## Feature: Tab URL + Video ใน KendoImage Modal (`feature/shopcart-image-manager-video-tab`)
+
+tab **"URL"** และ **"Video"** ใน KendoImage modal ถูก **unlock แล้ว** (เดิมซ่อน/disabled) — admin เพิ่มรูปจาก URL หรือแนบ video link ได้โดยตรง
+
+### วิธีเข้าถึง
+- ใช้ได้ในทุกที่ที่มี KendoImage picker: product image manager, attribute value image, และ component อื่นๆ ที่ใช้ `KendoImage` modal
+
+### พฤติกรรม
+| Tab | Effect | Gotchas |
+|---|---|---|
+| URL tab | วาง URL รูปภาพโดยตรง — ไม่ต้อง upload | URL ต้องเป็น public accessible HTTPS; CORS อาจบล็อก preview ถ้า server ปลายทางไม่อนุญาต |
+| Video tab | แนบ video link (YouTube, Vimeo หรือ direct) | ระบบแสดงเป็น embed player ไม่ใช่รูปนิ่ง — ตรวจสอบว่า component ที่ใช้ render video ได้ |
+
+### Gotchas
+- **เดิม 2 tab นี้ hidden** ด้วย CSS/ng-if — ถ้า admin เคยใช้ modal นี้มาก่อนจะเห็น tab ใหม่โดยไม่ต้องทำอะไร
+- Video URL ที่ไม่รองรับ embed (เช่น direct `.mp4` โดยไม่มี player wrapper) อาจแสดงผลไม่ถูกต้องใน component บางชนิด

@@ -222,3 +222,88 @@ The Page Manager screen (`Index.cshtml`) is a left page-tree + right detail pane
 ### Gotchas
 - การเช็คทำ **ฝั่ง client ก่อนยิง save** — ไม่ได้แทน error `ERRORREWRITEURL` ที่ server ส่งกลับ; ยังเจอ error ตัวนั้นได้ถ้าชนกันในกรณีที่ pre-check มองไม่เห็น
 - ป้ายชื่อภาษาในรายการมาจาก `getLanguageName(languageID)` — หน้าเดียวกันที่ชนหลายภาษาจะยุบเป็นแถวเดียว แล้วรวมชื่อภาษาไว้ใน `langLabel`
+
+---
+
+## Feature: ปิดหน้าและ Return HTTP 404 (`feature/page-disable-access-404`)
+
+หน้าที่ tick **"Disable access to this page in all cases"** (`bDisableAccess = true`) จะ return HTTP 404 แทนการ render ปกติ — `RenderController.cs` ตรวจ flag ก่อน render แล้ว return `HttpNotFound()`
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/PageManager` → เลือกหน้า → tab **Additional Settings**
+- **Field label:** "Disable access to this page in all cases (ปิดหน้านี้ ไม่ให้เข้าถึง ทุกกรณี)"
+- **ng-model:** `SelectPageConfig.bDisableAccess` (checkbox)
+
+### พฤติกรรม
+
+| สถานะ | ผลลัพธ์ |
+|---|---|
+| `bDisableAccess = false` | render หน้าปกติ |
+| `bDisableAccess = true` | `RenderController.cs` return `HttpNotFound()` → HTTP 404 |
+
+### Wired in (for developers)
+- **C# `RenderController.cs`:** ตรวจ `page.bDisableAccess` ก่อน render; ถ้า `true` → `return HttpNotFound()`
+- **View:** `Views/Page/2MainDetail.cshtml` → Additional Settings tab (checkbox `bDisableAccess`)
+
+### Gotchas
+- การ return 404 บน route ที่มีอยู่ส่งผลต่อ SEO — search engine จะถอด URL นั้นออกจาก index
+- ถ้าต้องการแค่ซ่อนหน้าจากเมนู ให้ใช้ checkbox "does not display in the top menu / side menu" แทน
+- ดู feature `page-disable-404-optional` สำหรับการควบคุม 404 แบบ opt-in
+
+---
+
+## Feature: เลือกได้ว่าจะ Return 404 เมื่อปิดหน้า (`feature/page-disable-404-optional`)
+
+เพิ่ม checkbox ที่สอง `bDisableReturn404` ทำให้การส่ง HTTP 404 บนหน้าที่ปิดเป็น **opt-in** — ต้องติกทั้ง `bDisableAccess` AND `bDisableReturn404` ถึงจะ return 404 มิเช่นนั้นหน้าที่ปิดจะปิดการเข้าถึงโดยไม่ส่ง 404
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/PageManager` → เลือกหน้า → tab **Additional Settings**
+- **Field label:** "Return HTTP 404 when page is disabled (ส่งรหัส 404 เมื่อปิดหน้า)"
+- **ng-model:** `SelectPageConfig.bDisableReturn404` (checkbox)
+
+### พฤติกรรม / Fields
+
+| `bDisableAccess` | `bDisableReturn404` | ผลลัพธ์ |
+|---|---|---|
+| false | ใดก็ตาม | render ปกติ |
+| true | false | ปิดการเข้าถึง (redirect หรือ error แบบอื่น) — **ไม่ return 404** |
+| true | true | return HTTP 404 |
+
+### Wired in (for developers)
+- **C# `Config.cs` / PageConfig:** เพิ่ม `public bool bDisableReturn404 { get; set; }`
+- **C# `RenderController.cs`:** เปลี่ยน condition เป็น `if (page.bDisableAccess && page.bDisableReturn404) return HttpNotFound()`
+- **View:** `Views/Page/2MainDetail.cshtml` → Additional Settings tab (checkbox ใหม่ ถัดจาก `bDisableAccess`)
+
+### Gotchas
+- **ต้องติกทั้งสอง checkbox** — ติกแค่ `bDisableAccess` อย่างเดียว ไม่ return 404
+- site ที่ upgrade มา: `bDisableReturn404` default `false` → หน้าที่เคยปิดแบบ 404 (จาก feature ก่อนหน้า) จะหยุด return 404 จนกว่าจะมา tick `bDisableReturn404` ด้วย
+
+---
+
+## Feature: ย้าย DisableUrlCharTransform ไปตำแหน่งที่ถูก (`feature/disable-url-char-transform`)
+
+ย้าย checkbox **"DisableUrlCharTransform"** จากที่อยู่ผิดที่ใน upload overlay ไปอยู่ใน **Theme → Options (General Settings)** ซึ่งเป็นตำแหน่งที่ถูกต้องตามหน้าที่ของมัน toggle นี้ปิดการแปลงตัวอักษรพิเศษ (เช่น `/`, `&`, `+`) ใน URL ของหน้าเพจ
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/Theme` → tab **Options** (General Settings)
+- **Field label:** "Disable URL Character Transform (ปิดการแปลงตัวอักษรพิเศษใน URL)"
+- **ng-model:** `config.bDisableUrlCharTransform` (checkbox)
+
+### พฤติกรรม / Fields
+
+| สถานะ | พฤติกรรม |
+|---|---|
+| `bDisableUrlCharTransform = false` (default) | ตัวอักษรพิเศษใน page name/URL ถูก encode (เช่น `/` → `%2F`) |
+| `bDisableUrlCharTransform = true` | ตัวอักษรพิเศษไม่ถูก encode — URL ใช้ตัวอักษรตรงๆ |
+
+- ส่งผลต่อ auto-gen canonical URL ด้วย (ดู feature `autogen-canonical-setting`) — เมื่อ ON จะแทน `/` ใน pageName ด้วย `_Sla_` แทน encode
+
+### Wired in (for developers)
+- **View:** `Views/Theme/5Options.cshtml` → Options tab (ย้ายมาจาก upload overlay)
+- **ng-model:** `config.bDisableUrlCharTransform`
+- **C# `Config.cs`:** `public bool bDisableUrlCharTransform { get; set; }`
+
+### Gotchas
+- การย้าย checkbox นี้ **ไม่ได้เปลี่ยน behavior** — เพียงแต่ย้าย UI ให้อยู่ตำแหน่งที่ถูกต้อง
+- ถ้าเปิด toggle นี้บน site ที่มีหน้าอยู่แล้ว URL pattern อาจเปลี่ยน — ควรทดสอบ และ regenerate sitemap หลัง toggle
+- `bDisableUrlCharTransform` ถูกอ่านโดย `buildAutoCanonical()` ใน `PageManager/Controller.js` เพื่อ transform `/` → `_Sla_` ใน auto-gen canonical URL

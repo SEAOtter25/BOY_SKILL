@@ -133,7 +133,7 @@ No admin action is required — the tag is auto-injected. To verify:
 
 ---
 
-## Feature: Auto Generate Canonical Tag (URL) (feature/autogen-canonical-setting)
+## Feature: Auto Generate Canonical Tag (URL) (`feature/autogen-canonical-setting`)
 
 เพิ่ม toggle ระดับ site ใน Website Settings สำหรับให้ระบบสร้าง canonical tag อัตโนมัติบนทุกหน้าที่ยังไม่ได้กำหนด Canonical URL ด้วยตัวเอง URL ที่ generate จะอยู่ในรูป `https://[www.]domain/PageName/PageID`
 
@@ -190,3 +190,113 @@ https://[www.]domain/encodedPageName/pageId
 - **Empty-only activation** — แค่ space เดียวใน Canonical URL ก็ bypass auto-gen ของหน้านั้น
 - **บังคับ false เมื่อ upgrade** — `saveConfig` default `false` ถ้าไม่มี key → enable แบบ opt-in ไม่มีผลกระทบต่อ site เก่า
 - **ทำงานเฉพาะ page ที่มี object `page`** — home/special routes ที่ไม่มี page object จะไม่ได้รับ canonical inject
+
+---
+
+## Feature: กำหนด Primary URL สำหรับบทความและสินค้า (`feature/seo-primary-url-toggle`)
+
+เพิ่ม toggle ระดับ site ให้ admin กำหนด **primary URL เดียว** สำหรับ article/product ป้องกัน duplicate content โดย inject canonical tag ฝั่ง server และส่ง 301 redirect จากหน้าอื่นที่ชี้ content เดียวกันไปยัง primary URL
+
+### วิธีเข้าถึง
+- **Route:** `https://demo110.itopplus.com/?manage=true#!/WebConfig` → tab **General**
+- **Field label (TH):** "กำหนด Primary URL สำหรับบทความและสินค้า"
+- **ng-model:** `config.bSeoPrimaryUrl` (checkbox)
+
+### พฤติกรรม / Fields
+
+| Field / Control | Type | ng-model | หมายเหตุ |
+|---|---|---|---|
+| กำหนด Primary URL สำหรับบทความและสินค้า | checkbox | `config.bSeoPrimaryUrl` | เปิด = ระบบ inject canonical + 301 redirect; ปิด = ปล่อยทุก URL render ตามปกติ |
+
+- เมื่อ `bSeoPrimaryUrl = true` → `HtmlHelperExtensions.cs` inject `<link rel="canonical">` ฝั่ง server-side ให้ทุก article/product page
+- URL อื่นที่ชี้ content เดียวกันจะถูก 301 redirect ไปยัง primary URL แทนการ render
+
+### Wired in (for developers)
+- **C# `Config.cs`:** `public bool bSeoPrimaryUrl { get; set; }`
+- **C# `HtmlHelperExtensions.cs`:** ตรวจ `config.bSeoPrimaryUrl` ก่อน inject canonical tag และ trigger 301 redirect logic
+- **View:** `Views/Theme/5Options.cshtml` → General tab
+
+### Gotchas
+- ค่า default คือ `false` — ไม่กระทบ site เก่าเมื่ออัปเกรด
+- 301 redirect เกิดขึ้น server-side เมื่อ URL ปัจจุบันไม่ตรง primary URL ของ content นั้น
+- ควร generate sitemap ใหม่หลังเปิด toggle นี้เพื่อให้ sitemap.xml ใช้ primary URL
+
+---
+
+## Feature: Per-Page noindex/nofollow (`feature/page-noindex-toggle`)
+
+แก้ให้ checkbox **"This page does not display SEO"** บน per-page Additional Settings tab ทำการ inject `<meta name="robots" content="noindex,nofollow">` จริงๆ เข้า `<head>` แทนที่จะแค่ซ่อน SEO defaults อย่างเดิม
+
+### วิธีเข้าถึง
+- **Route:** Page Properties modal → **Additional Settings** tab
+- เปิด modal ผ่าน gear icon บน page row ใน Layout Manager / page sidebar (`openPagePropertiesModal('<pageId>')`)
+- **Field label:** "This page does not display SEO (เพจนี้ไม่แสดงผล SEO)"
+- **ng-model:** `SelectPageConfig.notUseSeoDefault` (checkbox)
+
+### พฤติกรรม
+
+| สถานะ checkbox | พฤติกรรมเดิม | พฤติกรรมใหม่ |
+|---|---|---|
+| ไม่ได้ติก | render SEO defaults ปกติ | เหมือนเดิม |
+| ติก | ซ่อน SEO defaults เท่านั้น | ซ่อน SEO defaults **+ inject `<meta name="robots" content="noindex,nofollow">`** |
+
+- `HomeCtrlController.cs` ตรวจ `notUseSeoDefault` flag และ emit noindex meta tag ฝั่ง server-side
+
+### Wired in (for developers)
+- **C# `HomeCtrlController.cs`:** เพิ่ม logic ตรวจ `SelectPageConfig.notUseSeoDefault`; ถ้า `true` → emit `<meta name="robots" content="noindex,nofollow">` เข้า response
+- **View:** `Views/Page/2MainDetail.cshtml` → Additional Settings tab (checkbox เดิม ไม่ได้เพิ่ม field ใหม่)
+
+### Gotchas
+- feature นี้ **ไม่ได้เพิ่ม field ใหม่** — ใช้ checkbox `notUseSeoDefault` ที่มีอยู่แล้ว แต่เพิ่ม server-side behavior
+- หน้าที่เคยติก checkbox นี้อยู่แล้วก่อน deploy จะได้รับ noindex tag ทันทีหลัง deploy
+- ตรวจสอบได้โดย view-source หน้านั้น หา `<meta name="robots" content="noindex,nofollow">`
+
+---
+
+## Feature: เพิ่ม Disallow: /search ใน robots.txt (`feature/robots-disallow-search`)
+
+เพิ่ม `Disallow: /search` เข้าใน default block ของ robots.txt โดยอัตโนมัติ ป้องกัน search engine crawl ติด facet crawl trap จาก URL ที่มี query parameter search
+
+### วิธีเข้าถึง
+- **ไม่มี admin toggle** — ทำงานอัตโนมัติ
+- ผลลัพธ์ดูได้ที่ `https://[yourdomain]/robots.txt`
+
+### พฤติกรรม
+
+- `Controllers/FilesController.cs` เพิ่ม 1 บรรทัด `Disallow: /search` เข้า default block ที่ emit ทุกครั้ง
+- ไม่กระทบ `config.CustomRobots` — ยังใช้ append rules เพิ่มเติมได้ตามปกติ
+- default block (ที่รวม `/search` แล้ว) จะปรากฏในส่วน read-only ของ **Custom Robots.txt** field ใน `?manage=true#!/WebConfig` > SEO Settings tab
+
+### Wired in (for developers)
+- **C# `Controllers/FilesController.cs`:** `robots()` action — เพิ่ม `sb.AppendLine("Disallow: /search")` ใน default Disallow block
+
+### Gotchas
+- เป็นการแก้ **default block ซึ่ง admin ไม่สามารถแก้ไขได้** ผ่าน Custom Robots.txt box (box นั้น append เท่านั้น)
+- ถ้า site มี URL `/search` ที่ต้องการให้ index ได้ ต้องติดต่อ iTopPlus support เพื่อ override
+
+---
+
+## Feature: Sitemap/Feed ใช้ Scheme จาก Request จริง (`feature/sitemap-feed-respect-scheme-type`)
+
+แก้ bug ที่ sitemap.xml และ product feed URLs ใช้ HTTP แทน HTTPS (หรือกลับกัน) โดยแก้ logic ใน `HtmlHelperExtensions.cs` ให้ดึง scheme จาก request จริงแทนที่จะ hardcode
+
+### วิธีเข้าถึง
+- **ไม่มี admin toggle** — ทำงานอัตโนมัติ
+- ตรวจสอบได้ที่ `https://[yourdomain]/sitemap.xml` และ product feed URLs
+
+### พฤติกรรม
+
+| กรณี | พฤติกรรมเดิม (bug) | พฤติกรรมใหม่ |
+|---|---|---|
+| Site ใช้ HTTPS | URL ใน sitemap อาจเป็น `http://` | URL ใน sitemap เป็น `https://` ตาม request จริง |
+| Site ใช้ HTTP | URL ใน sitemap อาจเป็น `https://` | URL ใน sitemap เป็น `http://` ตาม request จริง |
+
+- `HtmlHelperExtensions.cs` แก้ logic `BuildAbsoluteUrl()` (หรือ method ที่ทำหน้าที่เดียวกัน) ให้อ่าน `Request.Url.Scheme` แทนค่า hardcode
+- ผลครอบคลุมทั้ง sitemap.xml และ product/content feed URLs ที่ใช้ helper เดียวกัน
+
+### Wired in (for developers)
+- **C# `HtmlHelperExtensions.cs`:** แก้ method build absolute URL ให้ใช้ `Request.Url.Scheme` หรือ `HttpContext.Current.Request.IsSecureConnection`
+
+### Gotchas
+- หลัง deploy ควร trigger **Update Sitemap** (`?manage=true#!/WebConfig` > SEO Settings > ปุ่ม "อัพเดท Sitemap") เพื่อ regenerate sitemap.xml ด้วย scheme ที่ถูก
+- CDN หรือ reverse proxy ที่ terminate SSL ก่อนถึง app server อาจทำให้ `Request.IsSecureConnection = false` แม้ end-user เห็น HTTPS — ควรตรวจสอบว่า `X-Forwarded-Proto` header ถูก forward มาด้วย
