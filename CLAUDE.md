@@ -45,6 +45,7 @@ Do not answer admin-backend questions before reading `SKILL.md` and the relevant
 | Store / shop / products / cart / orders / checkout / shipping / discount | `reference/store-shopcart.md` |
 | Domain settings, languages, multi-language | `reference/domain-language.md` |
 | 360 Image, Custom Booking, Digital Business Hub, Jewelry, E-SIM | `reference/specialized-modules.md` |
+| Open API / API key / REST API / MCP / connect an AI assistant to the site / Help center | `reference/open-api.md` |
 
 ## Conventions (apply to every answer)
 

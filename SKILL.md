@@ -46,6 +46,7 @@ any tenant's own domain.
 | Store / shop / products / cart / orders / checkout / shipping / discount | `reference/store-shopcart.md` |
 | Domain settings, languages, add a language, multi-language | `reference/domain-language.md` |
 | 360 Image, Custom Booking, Digital Business Hub, Jewelry, E-SIM | `reference/specialized-modules.md` |
+| Open API / API key / REST API / MCP / connect an AI assistant (Claude, Claude Code, Codex, Cursor, VS Code, Gemini) to the site / `itopplus-open-api` / Help center `#!/api-docs` | `reference/open-api.md` |
 
 ## When the skill can't answer (escalation)
 
